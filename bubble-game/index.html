@@ -2,19 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Bubble Shooter</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
     display: flex; justify-content: center; align-items: center;
-    min-height: 100vh; font-family: 'Segoe UI', Tahoma, sans-serif;
+    min-height: 100dvh; font-family: 'Segoe UI', Tahoma, sans-serif;
     overflow: hidden; user-select: none;
   }
   #wrapper {
     position: relative; display: flex;
     flex-direction: column; align-items: center; gap: 8px;
+    transform-origin: center center;
   }
   #hud {
     display: flex; justify-content: space-between;
@@ -478,7 +479,21 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && gameState==='play') lastTs = performance.now();
 });
 
+// ── responsive scaling ────────────────────────────────────────────────────────
+// Scale the whole wrapper so the game fills the viewport on any screen size.
+// cxy() uses getBoundingClientRect(), so input coords stay correct at any scale.
+function fitToScreen() {
+  const GAME_H = 580 + 44; // canvas + HUD + gap
+  const s = Math.min(1,
+    (window.innerWidth  - 8) / 420,
+    (window.innerHeight - 8) / GAME_H
+  );
+  document.getElementById('wrapper').style.transform = s < 1 ? `scale(${s})` : '';
+}
+window.addEventListener('resize', fitToScreen);
+
 // ── boot ──────────────────────────────────────────────────────────────────────
+fitToScreen();
 hiScore   = getHi();
 topAbs    = 0;
 grid      = makeGrid(5);
