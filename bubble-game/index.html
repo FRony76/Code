@@ -46,7 +46,7 @@
   <div id="hud">
     <span id="score-el">Score: 0</span>
     <span id="level-el">Level 1</span>
-    <span id="hi-el">Best: 0</span>
+    <span id="shots-el">Shots: 30</span>
   </div>
   <canvas id="c" width="420" height="580"></canvas>
   <div id="overlay">
@@ -61,11 +61,12 @@ const CV  = document.getElementById('c');
 const ctx = CV.getContext('2d');
 const W = CV.width, H = CV.height;  // 420 × 580
 
-const R     = 20;
+const R     = 15;
 const D     = R * 2;
-const COLS  = 10;
+const COLS  = 14;
 const ROW_H = R * Math.sqrt(3);     // ≈ 34.64
 const COLORS = ['#e74c3c','#3498db','#2ecc71','#f1c40f','#9b59b6','#1abc9c'];
+const TYPES  = ['normal','paint','destroyer','explosive','row'];
 const SX    = W / 2;                // shooter center-x
 const SY    = H - 55;               // shooter center-y
 const NX    = W - 36;               // "next" preview x
@@ -99,6 +100,22 @@ function makeRow() {
 }
 function makeGrid(rows) {
   return Array.from({length: rows}, makeRow);
+}
+
+function makeGridWithBulleCount(bulletCount) {
+  const grid = [];
+  let placed = 0;
+  while (placed < bulletCount) {
+    const row = Array(COLS).fill(null);
+    for (let c = 0; c < COLS && placed < bulletCount; c++) {
+      if (Math.random() < 0.7) {
+        row[c] = COLORS[Math.floor(Math.random() * COLORS.length)];
+        placed++;
+      }
+    }
+    grid.push(row);
+  }
+  return grid;
 }
 
 // ── neighbours (hex grid) ────────────────────────────────────────────────────
@@ -170,28 +187,103 @@ function snapCell(px, py) {
   return [br, bc];
 }
 
+// ── random type selector ──────────────────────────────────────────────────────
+function randomType() {
+  return TYPES[Math.floor(Math.random() * TYPES.length)];
+}
+
 // ── place projectile & resolve ────────────────────────────────────────────────
-let score, hiScore, level, dropTimer, particles;
+let score, hiScore, level, particles;
 let shootColor, nextColor, projectile;
+let shootType, nextType, selectedTypeIdx;
+let shots, baseShots = 30;
 let aimX, aimY, gameState, rafId, lastTs;
+
+// ── power-up effects ──────────────────────────────────────────────────────────
+function effectPaint(sr, sc) {
+  const newColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+  for (const [nr,nc] of neighbours(sr, sc)) {
+    if (grid[nr][nc] !== null) {
+      grid[nr][nc] = newColor;
+      burst(colX(nc,nr), rowY(nr), newColor);
+    }
+  }
+}
+
+function effectExplosive(sr, sc) {
+  const toDestroy = new Set();
+  toDestroy.add(sr * 100 + sc);
+  for (const [r,c] of neighbours(sr, sc)) {
+    toDestroy.add(r * 100 + c);
+    for (const [nr,nc] of neighbours(r,c)) {
+      toDestroy.add(nr * 100 + nc);
+    }
+  }
+  toDestroy.forEach(k => {
+    const r = Math.floor(k/100), c = k%100;
+    if (r >= 0 && r < grid.length && c >= 0 && c < COLS && grid[r][c]) {
+      burst(colX(c,r), rowY(r), grid[r][c]);
+      grid[r][c] = null;
+      score += 5 * level;
+    }
+  });
+}
+
+function effectRow(sr) {
+  for (let c = 0; c < COLS; c++) {
+    if (grid[sr][c] !== null) {
+      burst(colX(c,sr), rowY(sr), grid[sr][c]);
+      grid[sr][c] = null;
+      score += 5 * level;
+    }
+  }
+}
 
 function place() {
   const [sr,sc] = snapCell(projectile.x, projectile.y);
   if (sr < 0) { projectile = null; return; }
   while (grid.length <= sr) grid.push(Array(COLS).fill(null));
-  grid[sr][sc] = projectile.color;
+  const type = projectile.type, color = projectile.color;
   projectile = null;
 
-  const hit = cluster(sr, sc, grid[sr][sc]);
-  if (hit.length >= 3) {
-    hit.forEach(([r,c]) => { burst(colX(c,r), rowY(r), grid[r][c]); grid[r][c] = null; });
-    score += hit.length * 10 * level;
-    const fell = findFloating();
-    fell.forEach(([r,c]) => { burst(colX(c,r), rowY(r), grid[r][c]); grid[r][c] = null; score += 5*level; });
-    if (countBubbles() === 0) { levelUp(); return; }
+  switch(type) {
+    case 'paint':
+      grid[sr][sc] = color;
+      effectPaint(sr, sc);
+      break;
+    case 'destroyer':
+      // destructrice: grid[sr][sc] reste vide, elle disparaît
+      break;
+    case 'explosive':
+      grid[sr][sc] = color;
+      effectExplosive(sr, sc);
+      score += 15 * level;
+      break;
+    case 'row':
+      grid[sr][sc] = color;
+      effectRow(sr);
+      score += 15 * level;
+      break;
+    case 'normal':
+    default:
+      grid[sr][sc] = color;
+      const hit = cluster(sr, sc, grid[sr][sc]);
+      if (hit.length >= 3) {
+        hit.forEach(([r,c]) => { burst(colX(c,r), rowY(r), grid[r][c]); grid[r][c] = null; });
+        score += hit.length * 10 * level;
+      }
   }
 
-  if (isTooLow()) { endGame(); return; }
+  const fell = findFloating();
+  fell.forEach(([r,c]) => { burst(colX(c,r), rowY(r), grid[r][c]); grid[r][c] = null; score += 5*level; });
+
+  const remaining = countBubbles();
+  if (remaining === 0) {
+    if (shots > 0) { levelUp(); return; }
+    else { endGame(); return; }
+  }
+
+  if (shots === 0) { endGame(); return; }
   updateHUD();
 }
 
@@ -210,8 +302,9 @@ function isTooLow() {
 function levelUp() {
   level++;
   topAbs = 0;
-  grid = makeGrid(4 + Math.min(level, 6));
-  dropTimer = 0;
+  const bulletCount = Math.round(baseShots * Math.pow(1.05, level - 1));
+  grid = makeGridWithBulleCount(bulletCount);
+  shots += 5;
   updateHUD();
 }
 
@@ -247,7 +340,7 @@ function adj(hex, amt) {
 }
 
 // ── drawing ──────────────────────────────────────────────────────────────────
-function drawBubble(x, y, color, alpha, scale) {
+function drawBubble(x, y, color, alpha, scale, type) {
   const a = alpha ?? 1, s = scale ?? 1, r = R*s;
   ctx.save();
   ctx.globalAlpha = a;
@@ -261,6 +354,20 @@ function drawBubble(x, y, color, alpha, scale) {
   ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.fill();
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
   ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // type indicators
+  if (type === 'paint') {
+    ctx.strokeStyle = 'rgba(255,200,100,0.8)'; ctx.lineWidth = 2.5; ctx.stroke();
+  } else if (type === 'destroyer') {
+    ctx.strokeStyle = 'rgba(255,80,80,0.9)'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,200,200,0.6)'; ctx.lineWidth = 1; ctx.stroke();
+  } else if (type === 'explosive') {
+    ctx.strokeStyle = 'rgba(255,150,0,0.85)'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, r*1.3, 0, Math.PI*2); ctx.stroke();
+  } else if (type === 'row') {
+    ctx.strokeStyle = 'rgba(100,200,255,0.8)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x-r*1.2, y); ctx.lineTo(x+r*1.2, y); ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -314,15 +421,23 @@ function drawShooter() {
   ctx.fillStyle='#9a84ff';
   ctx.fillRect(-3,-R-22,6,R+22);
   ctx.restore();
-  drawBubble(SX, SY, shootColor, 1, .72);
+  drawBubble(SX, SY, shootColor, 1, .72, shootType);
 }
 
 function drawNext() {
   ctx.save();
   ctx.font='10px Segoe UI'; ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.textAlign='center';
-  ctx.fillText('NEXT', NX, NY-R-8);
+  ctx.fillText('SELECT', NX, NY-R-14);
+  ctx.font='8px Segoe UI'; ctx.fillStyle='rgba(200,200,200,0.6)';
+  ctx.fillText('◄ ► arrows', NX, NY-R-4);
   ctx.restore();
-  drawBubble(NX, NY, nextColor, 1, .62);
+  drawBubble(NX, NY, nextColor, 1, .62, TYPES[selectedTypeIdx]);
+
+  // highlight border for selected type
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,100,0.8)'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.arc(NX, NY, R*.62+4, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
 }
 
 function render() {
@@ -338,7 +453,7 @@ function render() {
   drawDanger();
   if (gameState==='play') {
     drawAim(); drawShooter(); drawNext();
-    if (projectile) drawBubble(projectile.x, projectile.y, projectile.color);
+    if (projectile) drawBubble(projectile.x, projectile.y, projectile.color, 1, 1, projectile.type);
   }
 }
 
@@ -359,7 +474,15 @@ function loop(ts) {
         for (let c=0; c<COLS; c++) {
           if (!grid[r][c]) continue;
           const dx=projectile.x-colX(c,r), dy=projectile.y-rowY(r);
-          if (dx*dx+dy*dy < (D-1)*(D-1)) { hit=true; break outer; }
+          if (dx*dx+dy*dy < (D-1)*(D-1)) {
+            if (projectile.type === 'destroyer') {
+              burst(colX(c,r), rowY(r), grid[r][c]);
+              grid[r][c] = null;
+              score += 3 * level;
+            } else {
+              hit=true; break outer;
+            }
+          }
         }
       if (hit) place();
     }
@@ -368,29 +491,32 @@ function loop(ts) {
   for (const p of particles) { p.x+=p.vx; p.y+=p.vy; p.vy+=.10; p.life-=.035; }
   for (let i=particles.length-1; i>=0; i--) if (particles[i].life<=0) particles.splice(i,1);
 
-  dropTimer += dt;
-  if (dropTimer >= Math.max(14000 - level*1200, 5000)) { dropTimer=0; dropRow(); }
-
   render();
   rafId = requestAnimationFrame(loop);
 }
 
 // ── shoot ─────────────────────────────────────────────────────────────────────
 function shoot(tx, ty) {
-  if (gameState!=='play' || projectile) return;
+  if (gameState!=='play' || projectile || shots === 0) return;
   const dx=tx-SX, dy=ty-SY;
   if (dy >= -8) return;
   const len=Math.hypot(dx,dy);
-  projectile = { x:SX, y:SY, vx:(dx/len)*SPD, vy:(dy/len)*SPD, color:shootColor };
+  projectile = { x:SX, y:SY, vx:(dx/len)*SPD, vy:(dy/len)*SPD, color:shootColor, type:shootType };
   shootColor = nextColor;
   nextColor  = COLORS[Math.floor(Math.random()*COLORS.length)];
+  shootType = TYPES[selectedTypeIdx];
+  selectedTypeIdx = (selectedTypeIdx + 1) % TYPES.length;
+  shots--;
+  updateHUD();
 }
 
 // ── HUD ───────────────────────────────────────────────────────────────────────
 function updateHUD() {
   document.getElementById('score-el').textContent = `Score: ${score}`;
   document.getElementById('level-el').textContent = `Level ${level}`;
-  document.getElementById('hi-el').textContent    = `Best: ${hiScore}`;
+  const shotsEl = document.getElementById('shots-el');
+  shotsEl.textContent = `Shots: ${shots}`;
+  shotsEl.style.color = shots < 5 ? '#ff6b6b' : '#fff';
 }
 
 // ── overlay helpers ───────────────────────────────────────────────────────────
@@ -440,15 +566,17 @@ function startGame() {
   cancelAnimationFrame(rafId);
   hiScore    = getHi();
   topAbs     = 0;
-  grid       = makeGrid(5);
+  grid       = makeGridWithBulleCount(baseShots);
   projectile = null;
   score      = 0;
   level      = 1;
-  dropTimer  = 0;
   particles  = [];
+  shots      = baseShots;
   aimX = SX; aimY = 0;
   shootColor = COLORS[Math.floor(Math.random()*COLORS.length)];
   nextColor  = COLORS[Math.floor(Math.random()*COLORS.length)];
+  selectedTypeIdx = 0;
+  shootType  = TYPES[selectedTypeIdx];
   gameState  = 'play';
   OV.style.display = 'none';
   updateHUD();
@@ -474,6 +602,11 @@ CV.addEventListener('mousemove',  e => { [aimX,aimY] = cxy(e); });
 CV.addEventListener('click',      e => { shoot(...cxy(e)); });
 CV.addEventListener('touchmove',  e => { e.preventDefault(); [aimX,aimY]=cxy(e); }, {passive:false});
 CV.addEventListener('touchstart', e => { e.preventDefault(); const p=cxy(e); aimX=p[0]; aimY=p[1]; shoot(...p); }, {passive:false});
+document.addEventListener('keydown', e => {
+  if (gameState !== 'play') return;
+  if (e.key === 'ArrowRight') { selectedTypeIdx = (selectedTypeIdx + 1) % TYPES.length; }
+  if (e.key === 'ArrowLeft') { selectedTypeIdx = (selectedTypeIdx - 1 + TYPES.length) % TYPES.length; }
+});
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && gameState==='play') lastTs = performance.now();
 });
@@ -481,11 +614,15 @@ document.addEventListener('visibilitychange', () => {
 // ── boot ──────────────────────────────────────────────────────────────────────
 hiScore   = getHi();
 topAbs    = 0;
-grid      = makeGrid(5);
+grid      = makeGridWithBulleCount(baseShots);
 particles = [];
+shots     = baseShots;
 shootColor= COLORS[0]; nextColor= COLORS[1];
+selectedTypeIdx = 0;
+shootType = TYPES[selectedTypeIdx];
 aimX=SX; aimY=0;
 gameState = 'menu';
+level = 1;
 render();
 updateHUD();
 showMenu();
