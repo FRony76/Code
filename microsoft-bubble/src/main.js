@@ -53,8 +53,10 @@ function scoreLevel() { return mode === 'classic' ? level : currentLevel.tier; }
 function activeColors() {
   const s = new Set();
   for (let r = 0; r < grid.length; r++)
-    for (let c = 0; c < COLS; c++)
-      if (grid[r][c] !== null) s.add(grid[r][c]);
+    for (let c = 0; c < COLS; c++) {
+      const col = effectiveColor(grid[r][c]);
+      if (col) s.add(col);
+    }
   return s.size > 0 ? [...s] : currentPalette;
 }
 
@@ -273,9 +275,9 @@ function stepProjectile() {
 
 /* Bille éclatée : explosion, pas de récupération */
 function popCell(r, c, pts) {
-  const color = grid[r][c];
-  if (color === null) return;
-  burst(colX(c, r), rowY(r), color);
+  const cell = grid[r][c];
+  if (cell === null) return;
+  burst(colX(c, r), rowY(r), effectiveColor(cell) || '#777');
   grid[r][c] = null;
   checkPowerCell(r, c);
   if (pts) score += pts;
@@ -283,8 +285,9 @@ function popCell(r, c, pts) {
 
 /* Bille qui tombe : chute visuelle, récupérée dans le stock en Classique */
 function fallBubble(r, c, pts) {
-  const color = grid[r][c];
-  if (color === null) return;
+  const cell = grid[r][c];
+  if (cell === null) return;
+  const color = effectiveColor(cell) || '#777';
   particles.push({
     x: colX(c, r), y: rowY(r),
     vx: (Math.random() - 0.5) * 1.5,
@@ -299,12 +302,17 @@ function fallBubble(r, c, pts) {
 
 function dropFloating(lvl) {
   const fl = findFloating();
-  fl.forEach(([r, c]) => fallBubble(r, c, 5 * lvl));
-  if (mode === 'classic' && fl.length > 0) {
-    stock += fl.length;
-    spawnFloatText(SX, SY - 60, `+${fl.length} bille${fl.length > 1 ? 's' : ''}`, '#7FDBFF');
+  let colorCount = 0;
+  fl.forEach(([r, c]) => {
+    const isColor = typeof grid[r][c] === 'string';
+    fallBubble(r, c, isColor ? 5 * lvl : 0);
+    if (isColor) colorCount++;
+  });
+  if (mode === 'classic' && colorCount > 0) {
+    stock += colorCount;
+    spawnFloatText(SX, SY - 60, `+${colorCount} bille${colorCount > 1 ? 's' : ''}`, '#7FDBFF');
   }
-  if (fl.length >= 4) awardPowerup();   // récompense : chute massive → power-up
+  if (fl.length >= 4) awardPowerup();
   return fl.length;
 }
 
@@ -374,7 +382,8 @@ function settle(hitCell) {
     /* détruit le cluster touché quelle que soit sa taille */
     if (hitCell) {
       const [hr, hc] = hitCell;
-      const cells = cluster(hr, hc, grid[hr][hc]);
+      const fireColor = effectiveColor(grid[hr][hc]);
+      const cells = fireColor ? cluster(hr, hc, fireColor) : [[hr, hc]];
       cells.forEach(([r, c]) => popCell(r, c, Math.round(10 * lvl * mult)));
       spawnFloatText(p.x, Math.max(30, p.y), `+${Math.round(cells.length * 10 * lvl * mult)}`);
       dropFloating(lvl);
@@ -400,16 +409,29 @@ function settle(hitCell) {
 
   const hit = cluster(sr, sc, color);
   if (hit.length >= 3) {
+    /* caméléons adjacents au cluster : capturer avant le pop */
+    const adjCham = new Set();
+    hit.forEach(([r, c]) => {
+      for (const [nr, nc] of neighbours(r, c)) {
+        const nb = grid[nr][nc];
+        if (nb && typeof nb === 'object' && nb.type === 'chameleon') adjCham.add(nr * 100 + nc);
+      }
+    });
     const pts = Math.round(hit.length * 10 * lvl * mult);
     hit.forEach(([r, c]) => popCell(r, c, 0));
     score += pts;
+    /* colore les caméléons adjacents avec la couleur qui vient d'éclater */
+    adjCham.forEach(k => {
+      const nr = Math.floor(k / 100), nc = k % 100;
+      if (grid[nr][nc] && grid[nr][nc].type === 'chameleon') grid[nr][nc] = { type: 'chameleon', color };
+    });
     spawnFloatText(colX(sc, sr), Math.max(30, rowY(sr)), `+${pts}`);
     sfx.pop(currentPalette.indexOf(color));
     vibrate(15);
     combo++;
     if (combo >= 2) sfx.combo(combo);
     dropFloating(lvl);
-    if (hit.length >= 5) awardPowerup();   // récompense : grand cluster → power-up
+    if (hit.length >= 5) awardPowerup();
   } else {
     combo = 0;
     levelMiss = true;
@@ -451,9 +473,11 @@ function winLevel(preCount = 0) {
     combo = 0;
     currentPalette = classicColors(level);
     topAbs = 0;
-    grid = makeGrid(classicRows(level), currentPalette);
+    grid = makeGrid(classicRows(level), currentPalette, gridDensity(level));
     setPowerBubble();
+    scatterSpecialBubbles();
     appearAnim.clear();
+    initLevelScroll();
     spawnFloatText(SX, H / 2 - 40, `NIVEAU ${level} !`, '#4A9EFF');
     updateHUD();
   } else {
