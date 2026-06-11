@@ -57,9 +57,16 @@ function activeColors() {
 }
 
 function genAmmo() {
-  if (Math.random() < powerupChance()) return randomPowerup();
   const colors = activeColors();
   return { color: colors[Math.floor(Math.random() * colors.length)] };
+}
+
+/* Insère un power-up aléatoire dans le dernier slot non sélectionné du plateau */
+function awardPowerup() {
+  if (!ammoQueue.length) return;
+  let slot = ammoQueue.length - 1;
+  if (slot === selectedIdx) slot = Math.max(0, slot - 1);
+  ammoQueue[slot] = randomPowerup();
 }
 
 /* Le bonus Power Line est placé dans une bille aléatoire de la rangée du haut.
@@ -235,9 +242,10 @@ function dropFloating(lvl) {
   const fl = findFloating();
   fl.forEach(([r, c]) => fallBubble(r, c, 5 * lvl));
   if (mode === 'classic' && fl.length > 0) {
-    stock += fl.length;     // chaque bille tombée revient dans la réserve
+    stock += fl.length;
     spawnFloatText(SX, SY - 60, `+${fl.length} bille${fl.length > 1 ? 's' : ''}`, '#7FDBFF');
   }
+  if (fl.length >= 4) awardPowerup();   // récompense : chute massive → power-up
   return fl.length;
 }
 
@@ -247,20 +255,19 @@ function vibrate(ms) {
 
 /* ── Power Line ─────────────────────────────────────────────────────────── */
 /* Déclenchée quand la bille bonus de la rangée du haut est éclatée :
-   toutes les billes restantes tombent et sont récupérées */
+   toutes les billes restantes tombent ; le bonus de fin = 5 + N/2. */
 function activatePowerLine() {
+  const preCount = countBubbles();   // compté AVANT la chute
   const lvl = scoreLevel();
-  let fallen = 0;
   for (let r = 0; r < grid.length; r++)
     for (let c = 0; c < COLS; c++)
-      if (grid[r][c] !== null) { fallBubble(r, c, 5 * lvl); fallen++; }
-  if (fallen > 0) {
-    spawnFloatText(SX, DLIM - 60, `POWER LINE ! +${fallen * 5 * lvl}`, '#7FDBFF');
-    if (mode === 'classic') stock += fallen;
+      if (grid[r][c] !== null) fallBubble(r, c, 5 * lvl);
+  if (preCount > 0) {
+    spawnFloatText(SX, DLIM - 60, 'POWER LINE !', '#7FDBFF');
     sfx.powerup();
     vibrate(40);
   }
-  winLevel();
+  winLevel(preCount);
 }
 
 /* ── Résolution à l'impact ──────────────────────────────────────────────── */
@@ -343,6 +350,7 @@ function settle(hitCell) {
     combo++;
     if (combo >= 2) sfx.combo(combo);
     dropFloating(lvl);
+    if (hit.length >= 5) awardPowerup();   // récompense : grand cluster → power-up
   } else {
     combo = 0;
     levelMiss = true;
@@ -361,7 +369,9 @@ function finishShot() {
 }
 
 /* ── Victoire de niveau ─────────────────────────────────────────────────── */
-function winLevel() {
+/* preCount : billes présentes juste avant la chute finale (Power Line).
+   0 quand le tableau a été entièrement nettoyé bille par bille. */
+function winLevel(preCount = 0) {
   const lvl = scoreLevel();
   score += 500 * lvl;                                   // bonus de niveau
   if (!levelMiss) {
@@ -371,9 +381,10 @@ function winLevel() {
   sfx.levelUp();
 
   if (mode === 'classic') {
-    /* niveaux progressifs : +5 billes de récompense, grille plus garnie */
-    stock += 5;
-    spawnFloatText(SX, H / 2 + 30, '+5 billes', '#7FDBFF');
+    /* bonus = 5 + moitié des billes restantes juste avant la chute */
+    const bonus = 5 + Math.floor(preCount / 2);
+    stock += bonus;
+    spawnFloatText(SX, H / 2 + 30, `+${bonus} billes`, '#7FDBFF');
     spawnConfetti();
     level++;
     Store.set('bubbleMaxLvl', Math.max(Store.get('bubbleMaxLvl', 1), level));

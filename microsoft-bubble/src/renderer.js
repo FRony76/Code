@@ -188,20 +188,39 @@ function drawAmmoTray(g) {
 
   for (let i = 0; i < ammoQueue.length; i++) {
     const x = QUEUE_XS[i], y = QUEUE_Y;
+    const isPU = ammoQueue[i] && ammoQueue[i].pu;
+
     if (i === selectedIdx) {
-      /* anneau de sélection lumineux */
+      /* anneau de sélection : cyan pour bille normale, doré pour power-up */
       g.save();
       g.beginPath();
       g.arc(x, y, R + 4, 0, Math.PI * 2);
-      g.strokeStyle = '#7FDBFF';
+      g.strokeStyle = isPU ? '#FFD700' : '#7FDBFF';
       g.lineWidth = 2.5;
-      g.shadowColor = '#7FDBFF';
+      g.shadowColor = isPU ? '#FFD700' : '#7FDBFF';
       g.shadowBlur = 14;
       g.stroke();
       g.shadowBlur = 0;
       g.restore();
+    } else if (isPU) {
+      /* halo doré discret pour les power-ups non sélectionnés */
+      g.save();
+      g.beginPath();
+      g.arc(x, y, R + 3, 0, Math.PI * 2);
+      g.strokeStyle = 'rgba(255,210,50,0.55)';
+      g.lineWidth = 1.5;
+      g.shadowColor = '#FFD700';
+      g.shadowBlur = 8;
+      g.stroke();
+      g.shadowBlur = 0;
+      g.restore();
     }
-    drawAmmo(g, x, y, ammoQueue[i], 1, i === selectedIdx ? 0.82 : 0.68);
+
+    /* power-ups dessinés plus grands pour bien voir l'icône */
+    const scale = i === selectedIdx
+      ? (isPU ? 0.90 : 0.82)
+      : (isPU ? 0.78 : 0.68);
+    drawAmmo(g, x, y, ammoQueue[i], 1, scale);
   }
 }
 
