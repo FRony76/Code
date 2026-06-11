@@ -47,9 +47,19 @@ function powerupChance() {
 }
 function scoreLevel() { return mode === 'classic' ? level : currentLevel.tier; }
 
+/* Couleurs effectivement présentes sur la grille (évite les billes inutilisables) */
+function activeColors() {
+  const s = new Set();
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null) s.add(grid[r][c]);
+  return s.size > 0 ? [...s] : currentPalette;
+}
+
 function genAmmo() {
   if (Math.random() < powerupChance()) return randomPowerup();
-  return { color: currentPalette[Math.floor(Math.random() * currentPalette.length)] };
+  const colors = activeColors();
+  return { color: colors[Math.floor(Math.random() * colors.length)] };
 }
 
 /* Le bonus Power Line est placé dans une bille aléatoire de la rangée du haut.

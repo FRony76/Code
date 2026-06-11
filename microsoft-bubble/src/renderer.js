@@ -164,20 +164,22 @@ function drawLaser(g, p) {
   g.restore();
 }
 
-/* Positions des 4 emplacements du plateau de sélection */
-const QUEUE_Y = 650;
+/* Positions des 4 emplacements du plateau de sélection.
+   QUEUE_Y=657 : les billes démarrent à y=637, soit 3px sous la base du canon (y=634). */
+const QUEUE_Y = 657;
 const QUEUE_XS = [120, 180, 240, 300];  // centrés sur SX=210, espacement 60px
 
-/* Plateau de 4 billes sélectionnables au bas de l'écran */
+/* Plateau de 4 billes sélectionnables au bas de l'écran.
+   Dessiné AVANT le lanceur pour que le canon reste visible par-dessus. */
 function drawAmmoTray(g) {
   if (!ammoQueue || !ammoQueue.length) return;
 
-  /* fond du plateau */
+  /* fond du plateau — commence exactement sous la base du canon */
   g.save();
   g.fillStyle = 'rgba(10,25,80,0.72)';
   g.beginPath();
-  g.roundRect(QUEUE_XS[0] - R - 10, QUEUE_Y - R - 9,
-              QUEUE_XS[3] - QUEUE_XS[0] + D + 20, D + 18, 14);
+  g.roundRect(QUEUE_XS[0] - R - 10, QUEUE_Y - R - 3,
+              QUEUE_XS[3] - QUEUE_XS[0] + D + 20, D + 6, 12);
   g.fill();
   g.strokeStyle = 'rgba(100,180,255,0.18)';
   g.lineWidth = 1;
@@ -190,7 +192,7 @@ function drawAmmoTray(g) {
       /* anneau de sélection lumineux */
       g.save();
       g.beginPath();
-      g.arc(x, y, R + 5, 0, Math.PI * 2);
+      g.arc(x, y, R + 4, 0, Math.PI * 2);
       g.strokeStyle = '#7FDBFF';
       g.lineWidth = 2.5;
       g.shadowColor = '#7FDBFF';
@@ -199,7 +201,7 @@ function drawAmmoTray(g) {
       g.shadowBlur = 0;
       g.restore();
     }
-    drawAmmo(g, x, y, ammoQueue[i], 1, i === selectedIdx ? 0.88 : 0.72);
+    drawAmmo(g, x, y, ammoQueue[i], 1, i === selectedIdx ? 0.82 : 0.68);
   }
 }
 
@@ -247,8 +249,8 @@ function render() {
 
   if (gameState === 'play' || gameState === 'pause') {
     drawAimGuide(ctx);
-    drawShooter(ctx);
-    drawAmmoTray(ctx);
+    drawAmmoTray(ctx);   // plateau d'abord (derrière)
+    drawShooter(ctx);    // canon par-dessus
     if (projectile) {
       if (projectile.pu === 'laser') drawLaser(ctx, projectile);
       else drawAmmo(ctx, projectile.x, projectile.y, projectile, 1);
