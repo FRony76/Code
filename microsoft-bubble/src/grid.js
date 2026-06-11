@@ -21,20 +21,30 @@ const BASE_COLORS = ['#E74C3C', '#2980B9', '#27AE60', '#F1C40F',
 
 let grid = [];      // grid[i][c] = couleur hex ou null
 let topAbs = 0;     // index absolu de grid[0] ; décrémente à chaque descente de rangée
+let gridScrollY = 0;   // décalage vertical de rendu (animation d'entrée + scroll)
+
+/* Couleur effective d'une cellule :
+   string → la couleur, chameleon avec couleur → sa couleur, sinon null */
+function effectiveColor(cell) {
+  if (!cell) return null;
+  if (typeof cell === 'string') return cell;
+  if (cell.type === 'chameleon') return cell.color || null;
+  return null;
+}
 
 /* Les rangées d'index ABSOLU impair sont décalées de +R vers la droite.
    topAbs garde les positions visuelles stables quand on insère une rangée en haut. */
 function absRow(gi) { return gi + topAbs; }
 function isOddAbs(gi) { return (((absRow(gi) % 2) + 2) % 2) !== 0; }
 function colX(col, gi) { return R + col * D + (isOddAbs(gi) ? R : 0); }
-function rowY(gi) { return R + gi * ROW_H; }
+function rowY(gi) { return R + gi * ROW_H - gridScrollY; }
 
-function makeRow(palette) {
+function makeRow(palette, density = 1.0) {
   return Array.from({ length: COLS },
-    () => palette[Math.floor(Math.random() * palette.length)]);
+    () => Math.random() < density ? palette[Math.floor(Math.random() * palette.length)] : null);
 }
-function makeGrid(rows, palette) {
-  return Array.from({ length: rows }, () => makeRow(palette));
+function makeGrid(rows, palette, density = 1.0) {
+  return Array.from({ length: rows }, () => makeRow(palette, density));
 }
 
 function countBubbles() {

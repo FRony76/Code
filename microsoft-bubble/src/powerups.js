@@ -29,8 +29,8 @@ function bestRainbowColor(sr, sc) {
   const tried = new Set();
   let best = null, bestLen = 0;
   for (const [nr, nc] of neighbours(sr, sc)) {
-    const col = grid[nr][nc];
-    if (tried.has(col)) continue;
+    const col = effectiveColor(grid[nr][nc]);
+    if (!col || tried.has(col)) continue;
     tried.add(col);
     grid[sr][sc] = col;
     const len = cluster(sr, sc, col).length;

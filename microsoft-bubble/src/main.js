@@ -21,6 +21,8 @@ let powerTriggered = false;    // la bille bonus vient d'être éclatée
 let rafId = 0;
 
 const START_STOCK = 30;        // billes de départ en Classique
+let gridIntroTarget = 0;  // gridScrollY cible à la fin de l'animation d'entrée
+let introActive = false;  // empêche le tir pendant l'animation
 
 /* ── Progression de difficulté (mode Classique) ─────────────────────────── */
 function classicColors(lv) {
@@ -69,6 +71,45 @@ function awardPowerup() {
   ammoQueue[slot] = randomPowerup();
 }
 
+function gridDensity(lv) {
+  if (lv <= 2) return 0.75;
+  if (lv <= 5) return 0.85;
+  if (lv <= 10) return 0.92;
+  return 0.97;
+}
+
+/* Place des billes spéciales (épines et caméléons) selon le niveau */
+function scatterSpecialBubbles() {
+  if (mode !== 'classic') return;
+  const spikeCount = level < 3 ? 0 : level <= 6 ? 1 : level <= 12 ? 2 : 3;
+  const chamCount  = level < 5 ? 0 : level <= 9 ? 1 : 2;
+  const candidates = [];
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell !== null && typeof cell === 'string'
+          && !(powerCell && r === powerCell.r && c === powerCell.c))
+        candidates.push([r, c]);
+    }
+  function place(obj) {
+    if (!candidates.length) return;
+    const idx = Math.floor(Math.random() * candidates.length);
+    const [r, c] = candidates.splice(idx, 1)[0];
+    grid[r][c] = obj;
+  }
+  for (let i = 0; i < spikeCount; i++) place({ type: 'spike' });
+  for (let i = 0; i < chamCount; i++)  place({ type: 'chameleon', color: null });
+}
+
+/* Calcule et lance l'animation d'entrée de la grille (grid scroll depuis le haut) */
+function initLevelScroll() {
+  gridScrollY = 0;
+  const rawLowest = lowestBubbleY();
+  gridIntroTarget = Math.max(0, rawLowest - (SY - 2 * H / 3));
+  gridScrollY = gridIntroTarget + H * 0.85;
+  introActive = true;
+}
+
 /* Le bonus Power Line est placé dans une bille aléatoire de la rangée du haut.
    L'éclater en l'associant à d'autres billes fait tomber tout le tableau. */
 function setPowerBubble() {
@@ -107,6 +148,7 @@ function resetCommon() {
 function beginPlay() {
   ammoQueue = [genAmmo(), genAmmo(), genAmmo(), genAmmo()];
   selectedIdx = 0;
+  initLevelScroll();
   gameState = 'play';
   hideOverlay();
   HUD.hidden = false;
@@ -123,8 +165,9 @@ function startClassic() {
   currentLevel = null;
   currentPalette = classicColors(level);
   topAbs = 0;
-  grid = makeGrid(classicRows(level), currentPalette);
+  grid = makeGrid(classicRows(level), currentPalette, gridDensity(level));
   setPowerBubble();
+  scatterSpecialBubbles();
   beginPlay();
 }
 
@@ -162,6 +205,22 @@ function restartRound() {
 /* ── Boucle principale ──────────────────────────────────────────────────── */
 function loop() {
   if (gameState !== 'play') return;
+  /* animation d'entrée : la grille descend depuis le haut */
+  if (introActive) {
+    gridScrollY = Math.max(gridIntroTarget, gridScrollY - 10);
+    if (gridScrollY <= gridIntroTarget) { introActive = false; gridScrollY = gridIntroTarget; }
+  } else if (gridScrollY > 0) {
+    /* scroll dynamique : maintient 2/3 d'espace vide entre la grille et le lanceur */
+    let lowestRow = -1;
+    for (let r = grid.length - 1; r >= 0 && lowestRow < 0; r--)
+      for (let c = 0; c < COLS; c++)
+        if (grid[r][c] !== null) { lowestRow = r; break; }
+    if (lowestRow >= 0) {
+      const rawY = R + lowestRow * ROW_H + R;
+      const tgt = Math.max(0, rawY - (SY - 2 * H / 3));
+      if (tgt < gridScrollY) gridScrollY = Math.max(tgt, gridScrollY - 2);
+    } else { gridScrollY = 0; }
+  }
   if (projectile) stepProjectile();
   updateParticles();
   if (gameState !== 'play') return;   // une résolution a pu terminer la partie
@@ -456,7 +515,7 @@ function selectAmmo(idx) {
 }
 
 function shoot(tx, ty) {
-  if (gameState !== 'play' || projectile) return;
+  if (gameState !== 'play' || projectile || introActive) return;
   const dx = tx - SX, dy = ty - SY;
   if (dy >= -8) return;                       // pas de tir vers le bas
   if (mode === 'classic') {

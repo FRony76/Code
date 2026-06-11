@@ -23,7 +23,7 @@ function cluster(gi, col, color) {
     const k = r * 100 + c;
     if (seen.has(k)) continue;
     if (r < 0 || r >= grid.length || c < 0 || c >= COLS) continue;
-    if (grid[r][c] !== color) continue;
+    if (effectiveColor(grid[r][c]) !== color) continue;
     seen.add(k);
     res.push([r, c]);
     for (const nb of neighbours(r, c)) stack.push(nb);

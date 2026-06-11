@@ -169,12 +169,11 @@ function drawLaser(g, p) {
 const QUEUE_Y = 657;
 const QUEUE_XS = [120, 180, 240, 300];  // centrés sur SX=210, espacement 60px
 
-/* Plateau de 4 billes sélectionnables au bas de l'écran.
-   Dessiné AVANT le lanceur pour que le canon reste visible par-dessus. */
+const PU_NAMES = { bomb: 'Bombe', rainbow: 'Arc-en-ciel', laser: 'Laser', fire: 'Feu', ice: 'Glace' };
+
 function drawAmmoTray(g) {
   if (!ammoQueue || !ammoQueue.length) return;
 
-  /* fond du plateau — commence exactement sous la base du canon */
   g.save();
   g.fillStyle = 'rgba(10,25,80,0.72)';
   g.beginPath();
@@ -189,9 +188,7 @@ function drawAmmoTray(g) {
   for (let i = 0; i < ammoQueue.length; i++) {
     const x = QUEUE_XS[i], y = QUEUE_Y;
     const isPU = ammoQueue[i] && ammoQueue[i].pu;
-
     if (i === selectedIdx) {
-      /* anneau de sélection : cyan pour bille normale, doré pour power-up */
       g.save();
       g.beginPath();
       g.arc(x, y, R + 4, 0, Math.PI * 2);
@@ -203,7 +200,6 @@ function drawAmmoTray(g) {
       g.shadowBlur = 0;
       g.restore();
     } else if (isPU) {
-      /* halo doré discret pour les power-ups non sélectionnés */
       g.save();
       g.beginPath();
       g.arc(x, y, R + 3, 0, Math.PI * 2);
@@ -215,13 +211,101 @@ function drawAmmoTray(g) {
       g.shadowBlur = 0;
       g.restore();
     }
-
-    /* power-ups dessinés plus grands pour bien voir l'icône */
-    const scale = i === selectedIdx
-      ? (isPU ? 0.90 : 0.82)
-      : (isPU ? 0.78 : 0.68);
+    const scale = i === selectedIdx ? (isPU ? 0.90 : 0.82) : (isPU ? 0.78 : 0.68);
     drawAmmo(g, x, y, ammoQueue[i], 1, scale);
   }
+
+  /* légende du power-up sélectionné (à droite du plateau) */
+  const selPU = ammoQueue[selectedIdx] && ammoQueue[selectedIdx].pu;
+  if (selPU) {
+    const icon = POWERUP_ICONS[selPU], name = PU_NAMES[selPU];
+    const lx = QUEUE_XS[3] + 10, ly = QUEUE_Y;
+    g.save();
+    g.fillStyle = 'rgba(20,40,100,0.88)';
+    g.beginPath();
+    g.roundRect(lx, ly - 17, 88, 34, 6);
+    g.fill();
+    g.strokeStyle = 'rgba(255,210,50,0.45)';
+    g.lineWidth = 1;
+    g.stroke();
+    g.font = '15px serif';
+    g.fillStyle = '#FFD700';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(icon, lx + 14, ly);
+    g.font = 'bold 10px "Segoe UI",sans-serif';
+    g.fillStyle = 'rgba(255,230,100,0.9)';
+    g.textAlign = 'left';
+    g.fillText(name, lx + 27, ly);
+    g.restore();
+  }
+}
+
+/* Bulle épineuse : obstacle gris sombre avec pointes triangulaires */
+function drawSpikeBubble(g, x, y, scale = 1) {
+  const r = R * scale;
+  g.save();
+  g.beginPath();
+  g.arc(x, y, r * 0.82, 0, Math.PI * 2);
+  const gr = g.createRadialGradient(x - r * 0.2, y - r * 0.2, r * 0.05, x, y, r * 0.82);
+  gr.addColorStop(0, '#888');
+  gr.addColorStop(1, '#1a1a2e');
+  g.fillStyle = gr;
+  g.fill();
+  const N = 7;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const a1 = a - Math.PI / N * 0.5, a2 = a + Math.PI / N * 0.5;
+    g.beginPath();
+    g.moveTo(x + Math.cos(a1) * r * 0.82, y + Math.sin(a1) * r * 0.82);
+    g.lineTo(x + Math.cos(a) * r * 1.35, y + Math.sin(a) * r * 1.35);
+    g.lineTo(x + Math.cos(a2) * r * 0.82, y + Math.sin(a2) * r * 0.82);
+    g.closePath();
+    g.fillStyle = '#444';
+    g.strokeStyle = '#777';
+    g.lineWidth = 0.8;
+    g.fill();
+    g.stroke();
+  }
+  g.beginPath();
+  g.arc(x - r * 0.25, y - r * 0.25, r * 0.18, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255,255,255,0.25)';
+  g.fill();
+  g.restore();
+}
+
+/* Bulle caméléon : arc-en-ciel rotatif sans couleur, sinon colorée avec reflet vert */
+function drawChameleonBubble(g, x, y, color, scale = 1) {
+  const r = R * scale;
+  g.save();
+  if (color) {
+    drawBubbleBody(g, x, y, r, color);
+    g.beginPath();
+    g.arc(x, y, r + 1.5, 0, Math.PI * 2);
+    g.strokeStyle = 'rgba(180,255,180,0.45)';
+    g.lineWidth = 1.5;
+    g.stroke();
+  } else {
+    const h = (performance.now() / 1000 * 60) % 360;
+    const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+    gr.addColorStop(0,   `hsl(${h},100%,80%)`);
+    gr.addColorStop(0.4, `hsl(${(h + 90) % 360},100%,60%)`);
+    gr.addColorStop(1,   `hsl(${(h + 200) % 360},100%,40%)`);
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = gr;
+    g.fill();
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.strokeStyle = `hsla(${h},100%,75%,0.7)`;
+    g.lineWidth = 2;
+    g.stroke();
+  }
+  g.beginPath();
+  g.arc(x - r * 0.27, y - r * 0.27, r * 0.22, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.fill();
+  g.restore();
 }
 
 /* Bille bonus Power Line (rangée du haut) : anneau électrique pulsant + éclair.
@@ -257,9 +341,14 @@ function render() {
   ctx.save();
   ctx.translate(shakeX, 0);
   for (let r = 0; r < grid.length; r++)
-    for (let c = 0; c < COLS; c++)
-      if (grid[r][c] !== null)
-        drawBubble(ctx, colX(c, r), rowY(r), grid[r][c], 1, bubbleScale(r, c));
+    for (let c = 0; c < COLS; c++) {
+      const cell = grid[r][c];
+      if (cell === null) continue;
+      const cx = colX(c, r), cy = rowY(r), sc = bubbleScale(r, c);
+      if (typeof cell === 'string') drawBubble(ctx, cx, cy, cell, 1, sc);
+      else if (cell.type === 'spike') drawSpikeBubble(ctx, cx, cy, sc);
+      else if (cell.type === 'chameleon') drawChameleonBubble(ctx, cx, cy, cell.color, sc);
+    }
   drawPowerMark(ctx);
   ctx.restore();
 
