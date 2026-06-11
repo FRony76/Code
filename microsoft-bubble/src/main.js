@@ -15,7 +15,8 @@ let currentPalette = BASE_COLORS.slice(0, 4);
 let shootAmmo = null, nextAmmo = null;   // { color } ou { pu }
 let projectile = null;
 let aimX = SX, aimY = 0;
-let powerCutRow = -1;          // rangée de la Power Line (dernière rangée du niveau)
+let powerCell = null;          // bille bonus Power Line {r, c} sur la rangée du haut
+let powerTriggered = false;    // la bille bonus vient d'être éclatée
 let rafId = 0;
 
 const START_STOCK = 30;        // billes de départ en Classique
@@ -50,10 +51,24 @@ function genAmmo() {
   return { color: currentPalette[Math.floor(Math.random() * currentPalette.length)] };
 }
 
-/* La Power Line passe sous la dernière rangée occupée du niveau */
-function setPowerCutRow() {
-  powerCutRow = grid.length - 1;
-  while (powerCutRow > 0 && grid[powerCutRow].every(v => v === null)) powerCutRow--;
+/* Le bonus Power Line est placé dans une bille aléatoire de la rangée du haut.
+   L'éclater en l'associant à d'autres billes fait tomber tout le tableau. */
+function setPowerBubble() {
+  powerTriggered = false;
+  const cols = [];
+  if (grid.length > 0)
+    for (let c = 0; c < COLS; c++) if (grid[0][c] !== null) cols.push(c);
+  powerCell = cols.length > 0
+    ? { r: 0, c: cols[Math.floor(Math.random() * cols.length)] }
+    : null;
+}
+
+/* À appeler à chaque retrait de bille : déclenche le bonus si c'était elle */
+function checkPowerCell(r, c) {
+  if (powerCell && r === powerCell.r && c === powerCell.c) {
+    powerTriggered = true;
+    powerCell = null;
+  }
 }
 
 /* ── Démarrage des parties ──────────────────────────────────────────────── */
@@ -91,7 +106,7 @@ function startClassic() {
   currentPalette = classicColors(level);
   topAbs = 0;
   grid = makeGrid(classicRows(level), currentPalette);
-  setPowerCutRow();
+  setPowerBubble();
   beginPlay();
 }
 
@@ -103,7 +118,7 @@ function loadLevel(lvl) {
   grid = lvl.rows.map(r => r.slice());
   /* nettoie les éventuelles bulles flottantes du dessin initial */
   findFloating().forEach(([r, c]) => { grid[r][c] = null; });
-  setPowerCutRow();
+  setPowerBubble();
 }
 
 function startAdventure(id) {
@@ -185,6 +200,7 @@ function popCell(r, c, pts) {
   if (color === null) return;
   burst(colX(c, r), rowY(r), color);
   grid[r][c] = null;
+  checkPowerCell(r, c);
   if (pts) score += pts;
 }
 
@@ -200,6 +216,7 @@ function fallBubble(r, c, pts) {
   });
   trimParticles();
   grid[r][c] = null;
+  checkPowerCell(r, c);
   if (pts) score += pts;
 }
 
@@ -218,16 +235,8 @@ function vibrate(ms) {
 }
 
 /* ── Power Line ─────────────────────────────────────────────────────────── */
-/* Activée quand plus aucune bille n'occupe la dernière rangée du niveau
-   (ni en dessous) : toutes les billes restantes tombent et sont récupérées */
-function powerLineCleared() {
-  if (powerCutRow < 0) return false;
-  for (let r = powerCutRow; r < grid.length; r++)
-    for (let c = 0; c < COLS; c++)
-      if (grid[r][c] !== null) return false;
-  return true;
-}
-
+/* Déclenchée quand la bille bonus de la rangée du haut est éclatée :
+   toutes les billes restantes tombent et sont récupérées */
 function activatePowerLine() {
   const lvl = scoreLevel();
   let fallen = 0;
@@ -250,7 +259,7 @@ function settle(hitCell) {
   const lvl = scoreLevel();
 
   if (p.pu === 'ice') {
-    /* gèle et brise la rangée occupée la plus basse (aide à dégager la Power Line) */
+    /* gèle et brise la rangée occupée la plus basse */
     let lowest = -1;
     for (let r = grid.length - 1; r >= 0 && lowest < 0; r--)
       if (grid[r].some(v => v !== null)) lowest = r;
@@ -332,8 +341,8 @@ function settle(hitCell) {
 
 /* Vérifications communes après chaque tir résolu */
 function finishShot() {
+  if (powerTriggered) { powerTriggered = false; activatePowerLine(); return; }
   if (countBubbles() === 0) { winLevel(); return; }
-  if (powerLineCleared()) { activatePowerLine(); return; }
   if (isTooLow()) { endRound(false); return; }
   if (mode !== 'classic' && shotsLeft <= 0) { endRound(false); return; }
   if (mode === 'classic' && stock <= 0) { endRound(false); return; }
@@ -362,7 +371,7 @@ function winLevel() {
     currentPalette = classicColors(level);
     topAbs = 0;
     grid = makeGrid(classicRows(level), currentPalette);
-    setPowerCutRow();
+    setPowerBubble();
     appearAnim.clear();
     spawnFloatText(SX, H / 2 - 40, `NIVEAU ${level} !`, '#4A9EFF');
     updateHUD();

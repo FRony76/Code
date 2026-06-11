@@ -245,7 +245,7 @@ Cinq power-ups apparaissent aléatoirement dans le shooter (probabilité ajustab
 | **Arc-en-ciel**   | 🌈    | Correspond à n'importe quelle couleur (wild card)              |
 | **Laser**         | ⚡    | Traverse toute la colonne et détruit tout sur son passage      |
 | **Boule de feu**  | 🔥    | Détruit un cluster de 5+ bulles quelle que soit la taille     |
-| **Glace**         | ❄️    | Gèle et brise la rangée occupée la plus basse (dégage la Power Line) |
+| **Glace**         | ❄️    | Gèle et brise la rangée occupée la plus basse                  |
 
 Les power-ups ont leur propre rendu visuel animé (halo pulsant, icône centrée).
 
@@ -261,9 +261,11 @@ Le jeu n'est **pas continu** : il enchaîne des niveaux de plus en plus garnis
 - **Stock de billes** : le joueur démarre avec 30 billes ; chaque tir en consomme une.
 - **Récupération** : chaque bille qui tombe (flottante ou via Power Line) revient
   dans le stock ; chaque niveau terminé rapporte **+5 billes**.
-- **Power Line** : une ligne électrique brille sous la dernière rangée du niveau.
-  Quand elle est dégagée (plus aucune bille sur cette rangée ni en dessous),
-  toutes les billes restantes **tombent** (points + récupération) et le niveau est gagné.
+- **Power Line** : à chaque niveau, une bille aléatoire de la **rangée du haut**
+  porte le bonus (anneau électrique pulsant + ⚡). Quand cette bille est éclatée
+  en l'associant à d'autres billes de sa couleur (cluster ≥ 3, ou détruite par
+  un power-up), toutes les billes restantes **tombent** (points + récupération)
+  et le niveau est gagné.
 - Game over si le stock tombe à zéro avec des billes restantes, ou si une bulle
   passe la ligne de danger (`DLIM = SY - R×4`).
 - Fin de niveau : grille vidée (pops) ou Power Line activée.

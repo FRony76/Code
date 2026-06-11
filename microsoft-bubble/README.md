@@ -32,10 +32,11 @@ python3 -m http.server 8000
 
 ## Power Line
 
-Une ligne électrique brille sous la **dernière rangée** de chaque niveau. Dès qu'elle est
-dégagée (plus aucune bille sur cette rangée ni en dessous), la Power Line s'active :
-**toutes les billes restantes tombent**, sont comptées (et récupérées dans le stock en
-Classique), et le niveau est gagné. C'est le raccourci stratégique du jeu.
+À chaque niveau, une bille de la **rangée du haut** porte le bonus Power Line
+(anneau électrique pulsant + ⚡). Éclatez-la en l'**associant à d'autres billes de sa
+couleur** : la Power Line s'active, **toutes les billes restantes tombent**, sont comptées
+(et récupérées dans le stock en Classique), et le niveau est gagné. C'est l'objectif
+stratégique de chaque tableau.
 
 ## Commandes
 
@@ -51,7 +52,7 @@ Classique), et le niveau est gagné. C'est le raccourci stratégique du jeu.
 | 🌈 Arc-en-ciel | S'adapte à la couleur produisant le plus grand cluster. |
 | ⚡ Laser | Traverse la grille et détruit tout sur son passage. |
 | 🔥 Boule de feu | Détruit le cluster touché quelle que soit sa taille. |
-| ❄️ Glace | Gèle et brise la rangée occupée la plus basse (aide à dégager la Power Line). |
+| ❄️ Glace | Gèle et brise la rangée occupée la plus basse. |
 
 ## Architecture
 

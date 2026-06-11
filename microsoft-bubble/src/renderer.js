@@ -173,27 +173,25 @@ function drawLaser(g, p) {
   g.restore();
 }
 
-/* Power Line : ligne électrique pulsante sous la dernière rangée du niveau.
-   La dégager fait tomber toutes les billes restantes. */
-function drawPowerLine(g) {
-  if (powerCutRow < 0) return;
-  const y = rowY(powerCutRow) + R + 3;
-  if (y >= DLIM - 6) return;
-  const pulse = REDUCED_MOTION ? 0.7 : 0.55 + 0.3 * Math.sin(performance.now() / 250);
+/* Bille bonus Power Line (rangée du haut) : anneau électrique pulsant + éclair.
+   L'éclater en cluster fait tomber toutes les billes restantes. */
+function drawPowerMark(g) {
+  if (!powerCell || !grid[powerCell.r] || grid[powerCell.r][powerCell.c] === null) return;
+  const x = colX(powerCell.c, powerCell.r), y = rowY(powerCell.r);
+  const pulse = REDUCED_MOTION ? 0.8 : 0.6 + 0.4 * Math.sin(performance.now() / 200);
   g.save();
   g.strokeStyle = `rgba(127,219,255,${pulse})`;
-  g.lineWidth = 2;
+  g.lineWidth = 3;
   g.shadowColor = '#7FDBFF';
-  g.shadowBlur = 8;
+  g.shadowBlur = 12;
   g.beginPath();
-  g.moveTo(0, y);
-  g.lineTo(W, y);
+  g.arc(x, y, R + 2.5, 0, Math.PI * 2);
   g.stroke();
   g.shadowBlur = 0;
-  g.font = '10px "Segoe UI", sans-serif';
-  g.fillStyle = `rgba(127,219,255,${Math.min(1, pulse + 0.2)})`;
-  g.textAlign = 'left';
-  g.fillText('POWER LINE', 6, y + 13);
+  g.font = '15px serif';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('⚡', x, y + 1);
   g.restore();
 }
 
@@ -211,13 +209,13 @@ function render() {
     for (let c = 0; c < COLS; c++)
       if (grid[r][c] !== null)
         drawBubble(ctx, colX(c, r), rowY(r), grid[r][c], 1, bubbleScale(r, c));
+  drawPowerMark(ctx);
   ctx.restore();
 
   drawParticles(ctx);
   drawDanger(ctx);
 
   if (gameState === 'play' || gameState === 'pause') {
-    drawPowerLine(ctx);
     drawAimGuide(ctx);
     drawShooter(ctx);
     drawNext(ctx);
