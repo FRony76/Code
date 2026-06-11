@@ -31,7 +31,7 @@ function updateHUD() {
   hudScore.textContent = `Score : ${fmt(score)}`;
   if (mode === 'classic') {
     hudMid.textContent = `Niveau ${level}`;
-    hudRight.textContent = `Best : ${fmt(hiScore)}`;
+    hudRight.textContent = `Billes : ${stock}`;
   } else {
     hudMid.textContent = currentLevel ? currentLevel.name : '';
     hudRight.textContent = `Tirs : ${shotsLeft}`;

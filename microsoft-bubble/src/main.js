@@ -8,24 +8,19 @@ let hiScore = getHi();
 let level = 1;
 let combo = 0;                 // pops consécutifs → multiplicateur
 let levelMiss = false;         // un tir raté annule le bonus « Perfect »
-let shotsLeft = 0;
+let stock = 0;                 // réserve de billes (mode Classique, persiste entre niveaux)
+let shotsLeft = 0;             // tirs restants (Aventure / Défi du jour)
 let currentLevel = null;       // niveau Adventure/Daily en cours
 let currentPalette = BASE_COLORS.slice(0, 4);
 let shootAmmo = null, nextAmmo = null;   // { color } ou { pu }
 let projectile = null;
 let aimX = SX, aimY = 0;
-let dropTimer = 0, freezeUntil = 0;
-let rafId = 0, lastTs = 0;
+let powerCutRow = -1;          // rangée de la Power Line (dernière rangée du niveau)
+let rafId = 0;
+
+const START_STOCK = 30;        // billes de départ en Classique
 
 /* ── Progression de difficulté (mode Classique) ─────────────────────────── */
-function tierInterval(lv) {
-  if (lv <= 1) return 15000;
-  if (lv <= 3) return 13000;
-  if (lv <= 6) return 11000;
-  if (lv <= 10) return 9000;
-  if (lv <= 15) return 7000;
-  return 5000;
-}
 function classicColors(lv) {
   const n = lv <= 3 ? 4 : lv <= 10 ? 5 : lv <= 15 ? 6 : lv < 20 ? 7 : 8;
   return BASE_COLORS.slice(0, n);
@@ -55,6 +50,12 @@ function genAmmo() {
   return { color: currentPalette[Math.floor(Math.random() * currentPalette.length)] };
 }
 
+/* La Power Line passe sous la dernière rangée occupée du niveau */
+function setPowerCutRow() {
+  powerCutRow = grid.length - 1;
+  while (powerCutRow > 0 && grid[powerCutRow].every(v => v === null)) powerCutRow--;
+}
+
 /* ── Démarrage des parties ──────────────────────────────────────────────── */
 function resetCommon() {
   cancelAnimationFrame(rafId);
@@ -65,8 +66,6 @@ function resetCommon() {
   score = 0;
   combo = 0;
   levelMiss = false;
-  freezeUntil = 0;
-  dropTimer = 0;
   aimX = SX;
   aimY = 0;
   hiScore = getHi();
@@ -80,7 +79,6 @@ function beginPlay() {
   HUD.hidden = false;
   updateHUD();
   startMusic();
-  lastTs = performance.now();
   rafId = requestAnimationFrame(loop);
 }
 
@@ -88,10 +86,12 @@ function startClassic() {
   resetCommon();
   mode = 'classic';
   level = 1;
+  stock = START_STOCK;
   currentLevel = null;
   currentPalette = classicColors(level);
   topAbs = 0;
   grid = makeGrid(classicRows(level), currentPalette);
+  setPowerCutRow();
   beginPlay();
 }
 
@@ -103,6 +103,7 @@ function loadLevel(lvl) {
   grid = lvl.rows.map(r => r.slice());
   /* nettoie les éventuelles bulles flottantes du dessin initial */
   findFloating().forEach(([r, c]) => { grid[r][c] = null; });
+  setPowerCutRow();
 }
 
 function startAdventure(id) {
@@ -126,27 +127,10 @@ function restartRound() {
 }
 
 /* ── Boucle principale ──────────────────────────────────────────────────── */
-function loop(ts) {
+function loop() {
   if (gameState !== 'play') return;
-  const dt = Math.min(ts - lastTs, 50);
-  lastTs = ts;
-
   if (projectile) stepProjectile();
   updateParticles();
-
-  /* descente périodique de la grille en mode Classique (gelable par ❄️) */
-  if (gameState === 'play' && mode === 'classic') {
-    if (performance.now() >= freezeUntil) dropTimer += dt;
-    if (dropTimer >= tierInterval(level)) {
-      dropTimer = 0;
-      topAbs--;
-      grid.unshift(makeRow(currentPalette));
-      appearAnim.clear();
-      for (let c = 0; c < COLS; c++) markAppear(0, c);
-      if (isTooLow()) { endRound(false); return; }
-    }
-  }
-
   if (gameState !== 'play') return;   // une résolution a pu terminer la partie
   render();
   rafId = requestAnimationFrame(loop);
@@ -195,6 +179,7 @@ function stepProjectile() {
   }
 }
 
+/* Bille éclatée : explosion, pas de récupération */
 function popCell(r, c, pts) {
   const color = grid[r][c];
   if (color === null) return;
@@ -203,14 +188,59 @@ function popCell(r, c, pts) {
   if (pts) score += pts;
 }
 
+/* Bille qui tombe : chute visuelle, récupérée dans le stock en Classique */
+function fallBubble(r, c, pts) {
+  const color = grid[r][c];
+  if (color === null) return;
+  particles.push({
+    x: colX(c, r), y: rowY(r),
+    vx: (Math.random() - 0.5) * 1.5,
+    vy: 1 + Math.random() * 2,
+    r: R * 0.8, color, life: 1.4
+  });
+  trimParticles();
+  grid[r][c] = null;
+  if (pts) score += pts;
+}
+
 function dropFloating(lvl) {
   const fl = findFloating();
-  fl.forEach(([r, c]) => popCell(r, c, 5 * lvl));
+  fl.forEach(([r, c]) => fallBubble(r, c, 5 * lvl));
+  if (mode === 'classic' && fl.length > 0) {
+    stock += fl.length;     // chaque bille tombée revient dans la réserve
+    spawnFloatText(SX, SY - 60, `+${fl.length} bille${fl.length > 1 ? 's' : ''}`, '#7FDBFF');
+  }
   return fl.length;
 }
 
 function vibrate(ms) {
   if (settings.vibrate && navigator.vibrate) navigator.vibrate(ms);
+}
+
+/* ── Power Line ─────────────────────────────────────────────────────────── */
+/* Activée quand plus aucune bille n'occupe la dernière rangée du niveau
+   (ni en dessous) : toutes les billes restantes tombent et sont récupérées */
+function powerLineCleared() {
+  if (powerCutRow < 0) return false;
+  for (let r = powerCutRow; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null) return false;
+  return true;
+}
+
+function activatePowerLine() {
+  const lvl = scoreLevel();
+  let fallen = 0;
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null) { fallBubble(r, c, 5 * lvl); fallen++; }
+  if (fallen > 0) {
+    spawnFloatText(SX, DLIM - 60, `POWER LINE ! +${fallen * 5 * lvl}`, '#7FDBFF');
+    if (mode === 'classic') stock += fallen;
+    sfx.powerup();
+    vibrate(40);
+  }
+  winLevel();
 }
 
 /* ── Résolution à l'impact ──────────────────────────────────────────────── */
@@ -220,11 +250,20 @@ function settle(hitCell) {
   const lvl = scoreLevel();
 
   if (p.pu === 'ice') {
-    /* gèle la descente pendant 10 s (utile en Classique) */
-    freezeUntil = performance.now() + 10000;
-    burst(p.x, p.y, '#7FDBFF', 16);
-    spawnFloatText(p.x, p.y, 'GEL !', '#7FDBFF');
+    /* gèle et brise la rangée occupée la plus basse (aide à dégager la Power Line) */
+    let lowest = -1;
+    for (let r = grid.length - 1; r >= 0 && lowest < 0; r--)
+      if (grid[r].some(v => v !== null)) lowest = r;
+    if (lowest >= 0) {
+      let n = 0;
+      for (let c = 0; c < COLS; c++)
+        if (grid[lowest][c] !== null) { popCell(lowest, c, 10 * lvl); n++; }
+      spawnFloatText(p.x, Math.max(30, p.y), `❄ +${n * 10 * lvl}`, '#7FDBFF');
+      dropFloating(lvl);
+      combo++;
+    }
     sfx.powerup();
+    vibrate(20);
     projectile = null;
     finishShot();
     return;
@@ -294,8 +333,10 @@ function settle(hitCell) {
 /* Vérifications communes après chaque tir résolu */
 function finishShot() {
   if (countBubbles() === 0) { winLevel(); return; }
+  if (powerLineCleared()) { activatePowerLine(); return; }
   if (isTooLow()) { endRound(false); return; }
   if (mode !== 'classic' && shotsLeft <= 0) { endRound(false); return; }
+  if (mode === 'classic' && stock <= 0) { endRound(false); return; }
   updateHUD();
 }
 
@@ -310,7 +351,9 @@ function winLevel() {
   sfx.levelUp();
 
   if (mode === 'classic') {
-    /* en Classique on enchaîne : nouvelle grille plus difficile */
+    /* niveaux progressifs : +5 billes de récompense, grille plus garnie */
+    stock += 5;
+    spawnFloatText(SX, H / 2 + 30, '+5 billes', '#7FDBFF');
     spawnConfetti();
     level++;
     Store.set('bubbleMaxLvl', Math.max(Store.get('bubbleMaxLvl', 1), level));
@@ -319,9 +362,8 @@ function winLevel() {
     currentPalette = classicColors(level);
     topAbs = 0;
     grid = makeGrid(classicRows(level), currentPalette);
+    setPowerCutRow();
     appearAnim.clear();
-    dropTimer = 0;
-    freezeUntil = 0;
     spawnFloatText(SX, H / 2 - 40, `NIVEAU ${level} !`, '#4A9EFF');
     updateHUD();
   } else {
@@ -368,7 +410,10 @@ function shoot(tx, ty) {
   if (gameState !== 'play' || projectile) return;
   const dx = tx - SX, dy = ty - SY;
   if (dy >= -8) return;                       // pas de tir vers le bas
-  if (mode !== 'classic') {
+  if (mode === 'classic') {
+    if (stock <= 0) return;
+    stock--;
+  } else {
     if (shotsLeft <= 0) return;
     shotsLeft--;
   }
@@ -396,7 +441,6 @@ function resumeGame() {
   gameState = 'play';
   hideOverlay();
   startMusic();
-  lastTs = performance.now();
   rafId = requestAnimationFrame(loop);
 }
 

@@ -26,9 +26,16 @@ python3 -m http.server 8000
 
 | Mode | Description |
 |------|-------------|
-| 🏆 **Classique** | Infini : la grille descend périodiquement, survivez le plus longtemps possible. |
+| 🏆 **Classique** | Niveaux progressifs (de plus en plus de billes et de couleurs). Vous disposez d'un **stock de billes** : chaque tir en consomme une, chaque bille qui tombe est récupérée, et chaque niveau terminé rapporte **+5 billes**. Game over quand le stock est vide. |
 | 🗺️ **Aventure** | 50 niveaux à débloquer, nombre de tirs limité, 1 à 3 étoiles selon le score. |
 | 📅 **Défi du jour** | Un niveau unique par jour, identique pour tous (génération par seed de date). |
+
+## Power Line
+
+Une ligne électrique brille sous la **dernière rangée** de chaque niveau. Dès qu'elle est
+dégagée (plus aucune bille sur cette rangée ni en dessous), la Power Line s'active :
+**toutes les billes restantes tombent**, sont comptées (et récupérées dans le stock en
+Classique), et le niveau est gagné. C'est le raccourci stratégique du jeu.
 
 ## Commandes
 
@@ -44,7 +51,7 @@ python3 -m http.server 8000
 | 🌈 Arc-en-ciel | S'adapte à la couleur produisant le plus grand cluster. |
 | ⚡ Laser | Traverse la grille et détruit tout sur son passage. |
 | 🔥 Boule de feu | Détruit le cluster touché quelle que soit sa taille. |
-| ❄️ Glace | Gèle la descente de la grille pendant 10 secondes (Classique). |
+| ❄️ Glace | Gèle et brise la rangée occupée la plus basse (aide à dégager la Power Line). |
 
 ## Architecture
 

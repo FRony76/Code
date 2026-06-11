@@ -173,20 +173,27 @@ function drawLaser(g, p) {
   g.restore();
 }
 
-/* Barre de progression de la prochaine descente (mode Classique) */
-function drawDropBar(g) {
-  if (mode !== 'classic') return;
-  const frozen = performance.now() < freezeUntil;
-  const ratio = Math.min(1, dropTimer / tierInterval(level));
+/* Power Line : ligne électrique pulsante sous la dernière rangée du niveau.
+   La dégager fait tomber toutes les billes restantes. */
+function drawPowerLine(g) {
+  if (powerCutRow < 0) return;
+  const y = rowY(powerCutRow) + R + 3;
+  if (y >= DLIM - 6) return;
+  const pulse = REDUCED_MOTION ? 0.7 : 0.55 + 0.3 * Math.sin(performance.now() / 250);
   g.save();
-  g.fillStyle = frozen ? 'rgba(127,219,255,0.8)' : 'rgba(74,158,255,0.6)';
-  g.fillRect(0, 0, W * (frozen ? 1 : 1 - ratio), 3);
-  if (frozen) {
-    g.font = '13px "Segoe UI", sans-serif';
-    g.textAlign = 'right';
-    g.fillStyle = '#7FDBFF';
-    g.fillText(`❄ ${Math.ceil((freezeUntil - performance.now()) / 1000)}s`, W - 8, 18);
-  }
+  g.strokeStyle = `rgba(127,219,255,${pulse})`;
+  g.lineWidth = 2;
+  g.shadowColor = '#7FDBFF';
+  g.shadowBlur = 8;
+  g.beginPath();
+  g.moveTo(0, y);
+  g.lineTo(W, y);
+  g.stroke();
+  g.shadowBlur = 0;
+  g.font = '10px "Segoe UI", sans-serif';
+  g.fillStyle = `rgba(127,219,255,${Math.min(1, pulse + 0.2)})`;
+  g.textAlign = 'left';
+  g.fillText('POWER LINE', 6, y + 13);
   g.restore();
 }
 
@@ -210,7 +217,7 @@ function render() {
   drawDanger(ctx);
 
   if (gameState === 'play' || gameState === 'pause') {
-    drawDropBar(ctx);
+    drawPowerLine(ctx);
     drawAimGuide(ctx);
     drawShooter(ctx);
     drawNext(ctx);
