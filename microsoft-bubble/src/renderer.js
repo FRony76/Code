@@ -146,18 +146,9 @@ function drawShooter(g) {
   g.fillStyle = '#8AC2FF';
   g.fillRect(-3, -R - 22, 6, R + 22);
   g.restore();
-  drawAmmo(g, SX, SY, shootAmmo, 0.75);
+  drawAmmo(g, SX, SY, ammoQueue && ammoQueue.length ? ammoQueue[selectedIdx] : null, 0.75);
 }
 
-function drawNext(g) {
-  g.save();
-  g.font = '10px "Segoe UI", sans-serif';
-  g.fillStyle = 'rgba(255,255,255,0.5)';
-  g.textAlign = 'center';
-  g.fillText('SUIVANT', NX, NY - R - 10);
-  g.restore();
-  drawAmmo(g, NX, NY, nextAmmo, 0.62);
-}
 
 function drawLaser(g, p) {
   g.save();
@@ -171,6 +162,45 @@ function drawLaser(g, p) {
   g.lineTo(p.x, p.y);
   g.stroke();
   g.restore();
+}
+
+/* Positions des 4 emplacements du plateau de sélection */
+const QUEUE_Y = 650;
+const QUEUE_XS = [120, 180, 240, 300];  // centrés sur SX=210, espacement 60px
+
+/* Plateau de 4 billes sélectionnables au bas de l'écran */
+function drawAmmoTray(g) {
+  if (!ammoQueue || !ammoQueue.length) return;
+
+  /* fond du plateau */
+  g.save();
+  g.fillStyle = 'rgba(10,25,80,0.72)';
+  g.beginPath();
+  g.roundRect(QUEUE_XS[0] - R - 10, QUEUE_Y - R - 9,
+              QUEUE_XS[3] - QUEUE_XS[0] + D + 20, D + 18, 14);
+  g.fill();
+  g.strokeStyle = 'rgba(100,180,255,0.18)';
+  g.lineWidth = 1;
+  g.stroke();
+  g.restore();
+
+  for (let i = 0; i < ammoQueue.length; i++) {
+    const x = QUEUE_XS[i], y = QUEUE_Y;
+    if (i === selectedIdx) {
+      /* anneau de sélection lumineux */
+      g.save();
+      g.beginPath();
+      g.arc(x, y, R + 5, 0, Math.PI * 2);
+      g.strokeStyle = '#7FDBFF';
+      g.lineWidth = 2.5;
+      g.shadowColor = '#7FDBFF';
+      g.shadowBlur = 14;
+      g.stroke();
+      g.shadowBlur = 0;
+      g.restore();
+    }
+    drawAmmo(g, x, y, ammoQueue[i], 1, i === selectedIdx ? 0.88 : 0.72);
+  }
 }
 
 /* Bille bonus Power Line (rangée du haut) : anneau électrique pulsant + éclair.
@@ -218,7 +248,7 @@ function render() {
   if (gameState === 'play' || gameState === 'pause') {
     drawAimGuide(ctx);
     drawShooter(ctx);
-    drawNext(ctx);
+    drawAmmoTray(ctx);
     if (projectile) {
       if (projectile.pu === 'laser') drawLaser(ctx, projectile);
       else drawAmmo(ctx, projectile.x, projectile.y, projectile, 1);

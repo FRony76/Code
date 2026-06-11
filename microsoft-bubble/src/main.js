@@ -12,7 +12,8 @@ let stock = 0;                 // réserve de billes (mode Classique, persiste e
 let shotsLeft = 0;             // tirs restants (Aventure / Défi du jour)
 let currentLevel = null;       // niveau Adventure/Daily en cours
 let currentPalette = BASE_COLORS.slice(0, 4);
-let shootAmmo = null, nextAmmo = null;   // { color } ou { pu }
+let ammoQueue = [];     // 4 billes sélectionnables
+let selectedIdx = 0;   // index de la bille chargée dans le canon
 let projectile = null;
 let aimX = SX, aimY = 0;
 let powerCell = null;          // bille bonus Power Line {r, c} sur la rangée du haut
@@ -87,8 +88,8 @@ function resetCommon() {
 }
 
 function beginPlay() {
-  shootAmmo = genAmmo();
-  nextAmmo = genAmmo();
+  ammoQueue = [genAmmo(), genAmmo(), genAmmo(), genAmmo()];
+  selectedIdx = 0;
   gameState = 'play';
   hideOverlay();
   HUD.hidden = false;
@@ -414,7 +415,25 @@ function endRound(win) {
   }
 }
 
-/* ── Tir ────────────────────────────────────────────────────────────────── */
+/* ── Sélection / tir ─────────────────────────────────────────────────────── */
+
+/* Retourne l'index du slot si (x, y) est dans le plateau, -1 sinon */
+function hitAmmoSlot(x, y) {
+  if (gameState !== 'play' || !ammoQueue.length) return -1;
+  for (let i = 0; i < QUEUE_XS.length; i++) {
+    const dx = x - QUEUE_XS[i], dy = y - QUEUE_Y;
+    if (dx * dx + dy * dy <= (R + 8) * (R + 8)) return i;
+  }
+  return -1;
+}
+
+function selectAmmo(idx) {
+  if (idx >= 0 && idx < ammoQueue.length && idx !== selectedIdx) {
+    selectedIdx = idx;
+    updateHUD();
+  }
+}
+
 function shoot(tx, ty) {
   if (gameState !== 'play' || projectile) return;
   const dx = tx - SX, dy = ty - SY;
@@ -429,10 +448,13 @@ function shoot(tx, ty) {
   const len = Math.hypot(dx, dy);
   projectile = Object.assign(
     { x: SX, y: SY, vx: (dx / len) * SPD, vy: (dy / len) * SPD },
-    shootAmmo
+    ammoQueue[selectedIdx]
   );
-  shootAmmo = nextAmmo;
-  nextAmmo = genAmmo();
+  ammoQueue.splice(selectedIdx, 1);
+  ammoQueue.push(genAmmo());
+  /* selectedIdx reste valide : si on tirait le dernier, on reste à l'index
+     qui pointe maintenant sur la nouvelle bille en fin de tableau */
+  if (selectedIdx >= ammoQueue.length) selectedIdx = ammoQueue.length - 1;
   sfx.shoot();
   updateHUD();
 }
@@ -464,9 +486,14 @@ function cxy(e) {
 }
 
 CV.addEventListener('mousemove', e => { [aimX, aimY] = cxy(e); });
-CV.addEventListener('click', e => { ensureAudio(); shoot(...cxy(e)); });
+CV.addEventListener('click', e => {
+  ensureAudio();
+  const [x, y] = cxy(e);
+  const slot = hitAmmoSlot(x, y);
+  if (slot >= 0) selectAmmo(slot); else shoot(x, y);
+});
 
-/* Tactile : glisser pour viser, relâcher pour tirer */
+/* Tactile : glisser pour viser, relâcher pour tirer ou sélectionner */
 CV.addEventListener('touchstart', e => {
   e.preventDefault();
   [aimX, aimY] = cxy(e);
@@ -478,7 +505,9 @@ CV.addEventListener('touchmove', e => {
 CV.addEventListener('touchend', e => {
   e.preventDefault();
   ensureAudio();
-  shoot(aimX, aimY);
+  const [x, y] = cxy(e);
+  const slot = hitAmmoSlot(x, y);
+  if (slot >= 0) selectAmmo(slot); else shoot(aimX, aimY);
 }, { passive: false });
 
 pauseBtn.addEventListener('click', pauseGame);
