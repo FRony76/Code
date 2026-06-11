@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Microsoft Bubble — Clone</title>
+<style>
+/* Palette UI — thème Microsoft Bubble (Fluent sombre) */
+:root {
+  --bg-dark:   #0D1B4B;
+  --bg-mid:    #1A2E6B;
+  --accent:    #4A9EFF;
+  --accent2:   #FF6B35;
+  --gold:      #FFD700;
+  --text-main: #FFFFFF;
+  --text-sub:  #A8BFE8;
+  --panel-bg:  rgba(10, 20, 60, 0.93);
+  --shadow:    rgba(74, 158, 255, 0.4);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  background: radial-gradient(circle at 50% 18%, #16266B, var(--bg-dark) 72%);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--text-main);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+#stage { padding-top: 8px; }
+
+#wrapper {
+  position: relative;
+  transform-origin: top center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* HUD : on garde la hauteur même caché pour que l'overlay ne saute pas */
+#hud {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 420px;
+  height: 34px;
+  font-weight: 600;
+  font-size: 16px;
+  padding: 2px 4px;
+  text-shadow: 0 0 10px var(--shadow);
+}
+#hud[hidden] { display: flex; visibility: hidden; }
+#hud-score { flex: 1; }
+#hud-mid   { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hud-right { flex: 1; text-align: right; }
+
+#pause-btn {
+  min-width: 44px;
+  min-height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(74, 158, 255, 0.25);
+  color: var(--text-main);
+  font-size: 16px;
+  cursor: pointer;
+}
+#pause-btn:hover { background: rgba(74, 158, 255, 0.45); }
+
+canvas {
+  display: block;
+  border-radius: 14px;
+  cursor: crosshair;
+  background: var(--bg-mid);
+  box-shadow: 0 0 40px var(--shadow), 0 0 110px rgba(74, 158, 255, 0.12);
+  touch-action: none;
+}
+
+#overlay {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  width: 420px;
+  height: 680px;
+  border-radius: 14px;
+  background: var(--panel-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  z-index: 10;
+  padding: 18px;
+  overflow-y: auto;
+}
+
+.title {
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 1.08;
+  text-align: center;
+  letter-spacing: -1px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.h2 { font-size: 30px; font-weight: 800; text-align: center; }
+.h2.win  { color: var(--gold); text-shadow: 0 0 22px rgba(255, 215, 0, 0.45); }
+.h2.over { color: #FF5A5A;  text-shadow: 0 0 22px rgba(255, 90, 90, 0.4); }
+
+.subtitle  { font-size: 15px; color: var(--text-sub); text-align: center; line-height: 1.6; max-width: 290px; }
+.stats     { font-size: 14px; color: var(--text-sub); text-align: center; }
+.big-score { font-size: 30px; font-weight: 800; color: var(--gold); text-shadow: 0 0 18px rgba(255, 215, 0, 0.4); }
+.best-score{ font-size: 17px; color: var(--text-sub); }
+.stars-big { font-size: 42px; color: var(--gold); letter-spacing: 6px; text-shadow: 0 0 22px rgba(255, 215, 0, 0.5); }
+
+.btn {
+  min-width: 240px;
+  min-height: 48px;
+  padding: 10px 28px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: inherit;
+  border: none;
+  border-radius: 50px;
+  background: linear-gradient(90deg, var(--accent), #2E6BD6);
+  color: var(--text-main);
+  cursor: pointer;
+  box-shadow: 0 4px 20px var(--shadow);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.btn:hover  { transform: scale(1.05); }
+.btn:active { transform: scale(0.97); }
+.btn.small  { min-height: 44px; font-size: 16px; opacity: 0.92; }
+.btn.danger { background: linear-gradient(90deg, #B3303F, #7A1F2B); box-shadow: 0 4px 16px rgba(179, 48, 63, 0.4); }
+
+/* Carte Aventure : 5 niveaux par rangée */
+.map {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  width: 100%;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.map-cell {
+  min-height: 56px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #2E4AA8, #1A2E6B);
+  color: var(--text-main);
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+.map-cell:hover:not(.locked) { background: linear-gradient(160deg, #4A9EFF, #2E4AA8); }
+.map-cell.locked { opacity: 0.4; cursor: default; }
+.map-num   { font-size: 17px; }
+.map-stars { font-size: 11px; color: var(--gold); letter-spacing: 1px; }
+
+/* Paramètres */
+.set-box { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 290px; }
+.set-row { display: flex; justify-content: space-between; align-items: center; font-size: 16px; }
+.toggle {
+  min-width: 68px;
+  min-height: 44px;
+  border: none;
+  border-radius: 22px;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  background: #3A4070;
+  color: var(--text-sub);
+}
+.toggle.on { background: var(--accent); color: var(--text-main); }
+
+/* Classement */
+.lb { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 310px; }
+.lb-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(74, 158, 255, 0.1);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 16px;
+}
+.lb-rank  { width: 36px; }
+.lb-name  { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-score { font-weight: 700; color: var(--gold); }
+
+.name-input {
+  min-height: 48px;
+  width: 240px;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 18px;
+  text-align: center;
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="wrapper">
+    <div id="hud" hidden>
+      <span id="hud-score">Score : 0</span>
+      <span id="hud-mid">Niveau 1</span>
+      <span id="hud-right">Best : 0</span>
+      <button id="pause-btn" aria-label="Mettre le jeu en pause">⏸</button>
+    </div>
+    <canvas id="c" width="420" height="680"
+            aria-label="Zone de jeu Microsoft Bubble : visez et tirez des bulles colorées"></canvas>
+    <div id="overlay" role="dialog" aria-live="polite"></div>
+  </div>
+</div>
+<script>
+'use strict';
+/* ════ src/store.js ════ */
+/* ── store.js ─ persistance localStorage : paramètres, scores, progression ── */
+
+const Store = {
+  get(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? fallback : JSON.parse(raw);
+    } catch { return fallback; }
+  },
+  set(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota / mode privé */ }
+  },
+  remove(key) {
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
+  }
+};
+
+const REDUCED_MOTION = window.matchMedia
+  && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* Paramètres utilisateur */
+const settings = Object.assign({
+  sound: true, music: false, vibrate: true, guide: true, gfxHigh: true
+}, Store.get('bubbleSettings', {}));
+
+function saveSettings() { Store.set('bubbleSettings', settings); }
+
+/* Meilleur score (mode Classique) */
+function getHi() { return Store.get('bubbleHi', 0); }
+function setHi(v) { Store.set('bubbleHi', v); }
+
+/* Progression Aventure : étoiles par niveau */
+function getAdvProgress() { return Store.get('bubbleAdv', { stars: {} }); }
+function saveAdvProgress(p) { Store.set('bubbleAdv', p); }
+function advUnlockedCount() {
+  const p = getAdvProgress();
+  let maxDone = 0;
+  for (const id of Object.keys(p.stars)) maxDone = Math.max(maxDone, +id);
+  return maxDone + 1;
+}
+
+/* Leaderboard local : 10 entrées max */
+function getLeaderboard() { return Store.get('bubbleLB', []); }
+function addLeaderboardEntry(name, score, level) {
+  const lb = getLeaderboard();
+  lb.push({ name, score, level, date: new Date().toISOString().slice(0, 10) });
+  lb.sort((a, b) => b.score - a.score);
+  lb.length = Math.min(lb.length, 10);
+  Store.set('bubbleLB', lb);
+}
+function leaderboardQualifies(score) {
+  const lb = getLeaderboard();
+  return score > 0 && (lb.length < 10 || score > lb[lb.length - 1].score);
+}
+
+/* Défi du jour : meilleur score par date */
+function getDailyBest(dateKey) { return Store.get('bubbleDaily', {})[dateKey] || 0; }
+function setDailyBest(dateKey, score) {
+  const d = Store.get('bubbleDaily', {});
+  if (score > (d[dateKey] || 0)) { d[dateKey] = score; Store.set('bubbleDaily', d); }
+}
+
+/* ════ src/audio.js ════ */
+/* ── audio.js ─ sons synthétiques via Web Audio API, aucun fichier audio ── */
+
+let audioCtx = null;
+let musicTimer = null;
+let musicStep = 0;
+
+function ensureAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch { return null; }
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+/* Oscillateur simple avec enveloppe exponentielle décroissante */
+function tone(freq, dur, type = 'sine', vol = 0.25, when = 0) {
+  if (!settings.sound) return;
+  const ac = ensureAudio();
+  if (!ac) return;
+  const t = ac.currentTime + when;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  osc.connect(gain);
+  gain.connect(ac.destination);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.start(t);
+  osc.stop(t + dur);
+}
+
+/* Bruit blanc court (tir) */
+function noiseBurst(dur = 0.05, vol = 0.12) {
+  if (!settings.sound) return;
+  const ac = ensureAudio();
+  if (!ac) return;
+  const len = Math.floor(ac.sampleRate * dur);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const gain = ac.createGain();
+  gain.gain.value = vol;
+  src.connect(gain);
+  gain.connect(ac.destination);
+  src.start();
+}
+
+const sfx = {
+  shoot() { noiseBurst(0.05, 0.12); },
+  /* Hauteur du pop liée à la couleur éclatée */
+  pop(colorIndex = 0) { tone(440 + Math.max(0, colorIndex) * 40, 0.18, 'sine', 0.25); },
+  combo(n) {
+    [523, 659, 784].slice(0, Math.min(3, n))
+      .forEach((f, i) => tone(f, 0.15, 'triangle', 0.2, i * 0.06));
+  },
+  levelUp() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.25, i * 0.12)); },
+  gameOver() { tone(220, 0.5, 'sawtooth', 0.16); tone(147, 0.7, 'sawtooth', 0.16, 0.25); },
+  /* Arpège pentatonique */
+  powerup() { [392, 440, 523, 587, 659].forEach((f, i) => tone(f, 0.12, 'sine', 0.2, i * 0.05)); }
+};
+
+/* Boucle musicale douce : arpège lent, désactivable dans les paramètres */
+const MUSIC_NOTES = [262, 330, 392, 330, 294, 370, 440, 370];
+
+function startMusic() {
+  stopMusic();
+  if (!settings.music) return;
+  musicTimer = setInterval(() => {
+    if (!settings.music) return;
+    tone(MUSIC_NOTES[musicStep % MUSIC_NOTES.length], 0.6, 'sine', 0.05);
+    musicStep++;
+  }, 750);
+}
+function stopMusic() {
+  if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+}
+
+/* ════ src/grid.js ════ */
+/* ── grid.js ─ géométrie de la grille hexagonale et état de la grille ── */
+
+const CV = document.getElementById('c');
+const ctx = CV.getContext('2d');
+const W = CV.width, H = CV.height;           // 420 × 680
+
+const R = 20;                                 // rayon d'une bulle
+const D = R * 2;                              // diamètre
+const COLS = 10;                              // bulles par rangée
+const ROW_H = R * Math.sqrt(3);               // ≈ 34.64 px entre rangées
+const SX = W / 2;                             // centre du lanceur
+const SY = H - 70;
+const NX = 54;                                // position de l'aperçu « SUIVANT »
+const NY = SY;
+const SPD = 14;                               // vitesse du projectile (px/frame)
+const DLIM = SY - R * 4;                      // ligne de danger
+
+const BASE_COLORS = ['#E74C3C', '#2980B9', '#27AE60', '#F1C40F',
+                     '#8E44AD', '#E67E22', '#1ABC9C', '#E91E8C'];
+
+let grid = [];      // grid[i][c] = couleur hex ou null
+let topAbs = 0;     // index absolu de grid[0] ; décrémente à chaque descente de rangée
+
+/* Les rangées d'index ABSOLU impair sont décalées de +R vers la droite.
+   topAbs garde les positions visuelles stables quand on insère une rangée en haut. */
+function absRow(gi) { return gi + topAbs; }
+function isOddAbs(gi) { return (((absRow(gi) % 2) + 2) % 2) !== 0; }
+function colX(col, gi) { return R + col * D + (isOddAbs(gi) ? R : 0); }
+function rowY(gi) { return R + gi * ROW_H; }
+
+function makeRow(palette) {
+  return Array.from({ length: COLS },
+    () => palette[Math.floor(Math.random() * palette.length)]);
+}
+function makeGrid(rows, palette) {
+  return Array.from({ length: rows }, () => makeRow(palette));
+}
+
+function countBubbles() {
+  let n = 0;
+  for (const row of grid) for (const v of row) if (v !== null) n++;
+  return n;
+}
+
+function lowestBubbleY() {
+  let y = -Infinity;
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null) y = Math.max(y, rowY(r) + R);
+  return y;
+}
+function isTooLow() { return lowestBubbleY() > DLIM; }
+
+/* ════ src/solver.js ════ */
+/* ── solver.js ─ voisins hexagonaux, flood-fill, bulles flottantes, snap ── */
+
+/* Les 6 voisins d'une cellule ; les offsets dépendent de la parité de la rangée absolue */
+function neighbours(gi, col) {
+  const odd = isOddAbs(gi);
+  return [
+    [gi - 1, odd ? col : col - 1],
+    [gi - 1, odd ? col + 1 : col],
+    [gi, col - 1],
+    [gi, col + 1],
+    [gi + 1, odd ? col : col - 1],
+    [gi + 1, odd ? col + 1 : col]
+  ].filter(([r, c]) =>
+    r >= 0 && r < grid.length && c >= 0 && c < COLS && grid[r][c] !== null);
+}
+
+/* Flood-fill itératif : toutes les cellules connectées de la même couleur */
+function cluster(gi, col, color) {
+  const seen = new Set(), stack = [[gi, col]], res = [];
+  while (stack.length) {
+    const [r, c] = stack.pop();
+    const k = r * 100 + c;
+    if (seen.has(k)) continue;
+    if (r < 0 || r >= grid.length || c < 0 || c >= COLS) continue;
+    if (grid[r][c] !== color) continue;
+    seen.add(k);
+    res.push([r, c]);
+    for (const nb of neighbours(r, c)) stack.push(nb);
+  }
+  return res;
+}
+
+/* BFS depuis la rangée 0 : tout ce qui n'est pas atteint est flottant */
+function findFloating() {
+  const attached = new Set(), queue = [];
+  for (let c = 0; c < COLS; c++) {
+    if (grid.length > 0 && grid[0][c] !== null) {
+      attached.add(c);
+      queue.push([0, c]);
+    }
+  }
+  let head = 0;
+  while (head < queue.length) {
+    const [r, c] = queue[head++];
+    for (const [nr, nc] of neighbours(r, c)) {
+      const k = nr * 100 + nc;
+      if (!attached.has(k)) { attached.add(k); queue.push([nr, nc]); }
+    }
+  }
+  const floating = [];
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null && !attached.has(r * 100 + c)) floating.push([r, c]);
+  return floating;
+}
+
+/* Cellule vide la plus proche du point d'impact (une rangée virtuelle sous la grille) */
+function snapCell(px, py) {
+  let bestR = -1, bestC = -1, bestD = Infinity;
+  const maxR = grid.length + 1;
+  for (let r = 0; r < maxR; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (r < grid.length && grid[r][c] !== null) continue;
+      const dx = px - colX(c, r), dy = py - rowY(r);
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; bestR = r; bestC = c; }
+    }
+  }
+  return [bestR, bestC];
+}
+
+/* ════ src/levels.js ════ */
+/* ── levels.js ─ niveaux Aventure (50) + Défi du jour, génération déterministe ── */
+
+/* PRNG déterministe pour les niveaux générés et le défi quotidien */
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function hashStr(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const LETTER_COLORS = {
+  R: '#E74C3C', B: '#2980B9', G: '#27AE60', Y: '#F1C40F',
+  P: '#8E44AD', O: '#E67E22', C: '#1ABC9C', K: '#E91E8C'
+};
+
+function rowsFromStrings(strs) {
+  return strs.map(s => Array.from(s, ch => (ch === '.' ? null : LETTER_COLORS[ch])));
+}
+
+/* Niveaux dessinés à la main (1 à 6), motifs reconnaissables */
+const HAND_LEVELS = [
+  { name: 'Démarrage en douceur', maxShots: 30, colors: 'RBGY',
+    grid: ['RRBGYRRBGY', 'BGRYBGRYBB', 'GYRRGYRRRG', 'YRBBYRBBYR'] },
+  { name: 'Damier', maxShots: 28, colors: 'RBGY',
+    grid: ['RBRBRBRBRB', 'BRBRBRBRBR', 'GYGYGYGYGY', 'YGYGYGYGYG'] },
+  { name: 'Colonnes', maxShots: 26, colors: 'RBGY',
+    grid: ['RRBBGGYYRR', 'RRBBGGYYRR', 'RRBBGGYYRR', 'BBGGYYRRBB'] },
+  { name: 'La fenêtre', maxShots: 26, colors: 'RBGYP',
+    grid: ['PPPPPPPPPP', 'P..RBGY..P', 'P..GYRB..P', 'PPPPPPPPPP'] },
+  { name: 'Zigzag', maxShots: 24, colors: 'RBGYP',
+    grid: ['RBGYPRBGYP', 'BGYPRBGYPR', 'GYPRBGYPRB', 'YPRBGYPRBG', 'PRBGYPRBGY'] },
+  { name: 'Forteresse', maxShots: 24, colors: 'RBGYPO',
+    grid: ['OOOOOOOOOO', 'ORBGYRBGYO', 'OGYRBGYRBO', 'OOOOOOOOOO', '..RGBYGR..'] }
+];
+
+function buildAdventureLevels() {
+  const levels = [];
+  const letters = 'RBGYPOCK';
+  for (let id = 1; id <= 50; id++) {
+    let rows, palette, name, maxShots;
+    if (id <= HAND_LEVELS.length) {
+      const h = HAND_LEVELS[id - 1];
+      rows = rowsFromStrings(h.grid);
+      palette = Array.from(h.colors, ch => LETTER_COLORS[ch]);
+      name = h.name;
+      maxShots = h.maxShots;
+    } else {
+      /* Niveaux générés de façon déterministe : seed = id */
+      const rng = mulberry32(id * 7919);
+      const nColors = Math.min(8, 4 + Math.floor((id - 1) / 10));
+      palette = Array.from(letters.slice(0, nColors), ch => LETTER_COLORS[ch]);
+      const nRows = Math.min(9, 4 + Math.floor((id - 1) / 8));
+      const holeP = Math.min(0.25, (id - 6) * 0.01);
+      rows = Array.from({ length: nRows }, () =>
+        Array.from({ length: COLS },
+          () => (rng() < holeP ? null : palette[Math.floor(rng() * palette.length)])));
+      /* La rangée 0 doit être pleine pour servir d'ancrage */
+      for (let c = 0; c < COLS; c++)
+        if (rows[0][c] === null) rows[0][c] = palette[Math.floor(rng() * palette.length)];
+      name = `Niveau ${id}`;
+      maxShots = Math.max(18, 34 - Math.floor(id / 4) + nRows);
+    }
+    const bubbles = rows.flat().filter(v => v !== null).length;
+    const tier = 1 + Math.floor((id - 1) / 10);   // palier de difficulté pour le score
+    const base = bubbles * 10 * tier;
+    levels.push({
+      id, name, maxShots, palette, rows, tier,
+      bonus: 500 * tier,
+      stars: [Math.round(base * 0.8), Math.round(base * 1.6), Math.round(base * 2.6)]
+    });
+  }
+  return levels;
+}
+
+const ADVENTURE_LEVELS = buildAdventureLevels();
+
+/* Défi du jour : un niveau unique par date, identique pour tout le monde */
+function todayKey() { return new Date().toDateString(); }
+
+function dailyLevel() {
+  const rng = mulberry32(hashStr(todayKey()));
+  const nColors = 5 + Math.floor(rng() * 2);
+  const palette = BASE_COLORS.slice(0, nColors);
+  const nRows = 6 + Math.floor(rng() * 2);
+  const rows = Array.from({ length: nRows }, () =>
+    Array.from({ length: COLS },
+      () => (rng() < 0.08 ? null : palette[Math.floor(rng() * palette.length)])));
+  for (let c = 0; c < COLS; c++)
+    if (rows[0][c] === null) rows[0][c] = palette[Math.floor(rng() * palette.length)];
+  const bubbles = rows.flat().filter(v => v !== null).length;
+  const base = bubbles * 10 * 3;
+  return {
+    id: 0, name: 'Défi du jour', maxShots: 30 + nRows, palette, rows, tier: 3,
+    bonus: 1500,
+    stars: [Math.round(base * 0.8), Math.round(base * 1.6), Math.round(base * 2.6)]
+  };
+}
+
+/* ════ src/particles.js ════ */
+/* ── particles.js ─ particules d'explosion, textes flottants, confettis ── */
+
+const MAX_PARTICLES = 200;
+
+let particles = [];
+let floatTexts = [];
+
+function burstCount() { return settings.gfxHigh ? 12 : 6; }
+
+function trimParticles() {
+  if (particles.length > MAX_PARTICLES)
+    particles.splice(0, particles.length - MAX_PARTICLES);
+}
+
+/* Explosion radiale à la position d'une bulle éclatée */
+function burst(x, y, color, count = burstCount()) {
+  for (let i = 0; i < count; i++) {
+    const a = (Math.PI * 2 * i) / count;
+    particles.push({
+      x, y,
+      vx: Math.cos(a) * (2 + Math.random() * 4),
+      vy: Math.sin(a) * (2 + Math.random() * 4),
+      r: 3 + Math.random() * 4,
+      color,
+      life: 1.0
+    });
+  }
+  trimParticles();
+}
+
+/* Texte « +X0 » qui monte et s'estompe depuis le point d'impact */
+function spawnFloatText(x, y, text, color = '#FFD700') {
+  floatTexts.push({ x, y, text, color, life: 1.0 });
+}
+
+/* Pluie de confettis multicolores (victoire / nouveau record) */
+function spawnConfetti() {
+  if (REDUCED_MOTION) return;
+  const n = settings.gfxHigh ? 80 : 40;
+  for (let i = 0; i < n; i++) {
+    particles.push({
+      x: Math.random() * W,
+      y: -10 - Math.random() * 60,
+      vx: (Math.random() - 0.5) * 2,
+      vy: 1 + Math.random() * 2.5,
+      r: 3 + Math.random() * 3,
+      color: BASE_COLORS[Math.floor(Math.random() * BASE_COLORS.length)],
+      life: 1.6
+    });
+  }
+  trimParticles();
+}
+
+function updateParticles() {
+  for (const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.12;       // gravité
+    p.life -= 0.04;
+    p.r *= 0.97;        // rétrécissement
+  }
+  particles = particles.filter(p => p.life > 0 && p.y < H + 20);
+
+  for (const t of floatTexts) {
+    t.y -= 0.8;
+    t.life -= 0.02;
+  }
+  floatTexts = floatTexts.filter(t => t.life > 0);
+}
+
+function drawParticles(g) {
+  for (const p of particles) {
+    g.save();
+    g.globalAlpha = Math.min(1, p.life) * 0.9;
+    g.beginPath();
+    g.arc(p.x, p.y, Math.max(0.5, p.r), 0, Math.PI * 2);
+    g.fillStyle = p.color;
+    g.fill();
+    g.restore();
+  }
+}
+
+function drawFloatTexts(g) {
+  for (const t of floatTexts) {
+    g.save();
+    g.globalAlpha = Math.min(1, t.life);
+    g.font = 'bold 17px "Segoe UI", sans-serif';
+    g.textAlign = 'center';
+    g.fillStyle = t.color;
+    g.shadowColor = 'rgba(0,0,0,0.6)';
+    g.shadowBlur = 4;
+    g.fillText(t.text, t.x, t.y);
+    g.restore();
+  }
+}
+
+/* ════ src/powerups.js ════ */
+/* ── powerups.js ─ bombe, arc-en-ciel, laser, boule de feu, glace ── */
+
+const POWERUP_TYPES = ['bomb', 'rainbow', 'laser', 'fire', 'ice'];
+const POWERUP_ICONS = { bomb: '💣', rainbow: '🌈', laser: '⚡', fire: '🔥', ice: '❄️' };
+const POWERUP_BASE = { bomb: '#555566', laser: '#FFE14A', fire: '#FF6B35', ice: '#7FDBFF' };
+
+function randomPowerup() {
+  return { pu: POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)] };
+}
+
+/* Cellules détruites par la bombe : rayon 3R autour du point d'impact */
+function bombCells(x, y) {
+  const out = [];
+  const radius2 = (R * 3) * (R * 3);
+  for (let r = 0; r < grid.length; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r][c] === null) continue;
+      const dx = x - colX(c, r), dy = y - rowY(r);
+      if (dx * dx + dy * dy <= radius2) out.push([r, c]);
+    }
+  }
+  return out;
+}
+
+/* Arc-en-ciel : essaie chaque couleur voisine et garde celle
+   qui produit le plus grand cluster autour de la cellule snappée */
+function bestRainbowColor(sr, sc) {
+  const tried = new Set();
+  let best = null, bestLen = 0;
+  for (const [nr, nc] of neighbours(sr, sc)) {
+    const col = grid[nr][nc];
+    if (tried.has(col)) continue;
+    tried.add(col);
+    grid[sr][sc] = col;
+    const len = cluster(sr, sc, col).length;
+    if (len > bestLen) { bestLen = len; best = col; }
+  }
+  grid[sr][sc] = null;
+  return best || currentPalette[Math.floor(Math.random() * currentPalette.length)];
+}
+
+/* Rendu d'une bulle power-up : halo pulsant + icône centrée */
+function drawPowerupBubble(g, x, y, type, scale = 1) {
+  const r = R * scale;
+  const pulse = REDUCED_MOTION ? 1 : 1 + 0.08 * Math.sin(performance.now() / 180);
+  g.save();
+  g.beginPath();
+  g.arc(x, y, r * pulse + 4, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255,255,255,0.12)';
+  g.fill();
+  if (type === 'rainbow') {
+    for (let i = 0; i < 6; i++) {
+      g.beginPath();
+      g.moveTo(x, y);
+      g.arc(x, y, r, (i / 6) * Math.PI * 2, ((i + 1) / 6) * Math.PI * 2);
+      g.closePath();
+      g.fillStyle = BASE_COLORS[i];
+      g.fill();
+    }
+  } else {
+    drawBubbleBody(g, x, y, r, POWERUP_BASE[type]);
+  }
+  g.font = `${Math.round(r * 1.1)}px serif`;
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText(POWERUP_ICONS[type], x, y + 1);
+  g.restore();
+}
+
+/* ════ src/renderer.js ════ */
+/* ── renderer.js ─ rendu canvas : bulles 3D, fond, viseur, lanceur, frame ── */
+
+/* Éclaircit (amt > 0) ou assombrit (amt < 0) une couleur hex */
+function adjColor(hex, amt) {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, Math.max(0, (n >> 16) + amt));
+  const g = Math.min(255, Math.max(0, ((n >> 8) & 0xff) + amt));
+  const b = Math.min(255, Math.max(0, (n & 0xff) + amt));
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawBubbleBody(g, x, y, r, color) {
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  const gr = g.createRadialGradient(x - r * 0.3, y - r * 0.32, r * 0.05, x, y, r);
+  gr.addColorStop(0, adjColor(color, 70));
+  gr.addColorStop(0.4, color);
+  gr.addColorStop(1, adjColor(color, -50));
+  g.fillStyle = gr;
+  g.fill();
+}
+
+function drawBubble(g, x, y, color, alpha = 1, scale = 1) {
+  const r = R * scale;
+  g.save();
+  g.globalAlpha = alpha;
+  drawBubbleBody(g, x, y, r, color);
+  /* reflet */
+  g.beginPath();
+  g.arc(x - r * 0.27, y - r * 0.27, r * 0.22, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(255,255,255,0.55)';
+  g.fill();
+  /* contour subtil */
+  g.beginPath();
+  g.arc(x, y, r, 0, Math.PI * 2);
+  g.strokeStyle = 'rgba(255,255,255,0.15)';
+  g.lineWidth = 1.5;
+  g.stroke();
+  g.restore();
+}
+
+/* Animation d'apparition (scale 0 → 1 en 150 ms) des bulles nouvellement posées */
+const appearAnim = new Map();   // clé r*100+c → timestamp
+
+function markAppear(r, c) { appearAnim.set(r * 100 + c, performance.now()); }
+
+function easeOutBack(t) {
+  const s = 1.70158;
+  t -= 1;
+  return t * t * ((s + 1) * t + s) + 1;
+}
+
+function bubbleScale(r, c) {
+  const t0 = appearAnim.get(r * 100 + c);
+  if (t0 === undefined) return 1;
+  const t = (performance.now() - t0) / 150;
+  if (t >= 1) { appearAnim.delete(r * 100 + c); return 1; }
+  return REDUCED_MOTION ? 1 : Math.max(0.05, easeOutBack(Math.max(0, t)));
+}
+
+function drawBG(g) {
+  const bg = g.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#1A2E6B');
+  bg.addColorStop(1, '#0D1B4B');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, W, H);
+}
+
+function drawDanger(g) {
+  g.save();
+  g.strokeStyle = 'rgba(255,60,60,0.35)';
+  g.lineWidth = 1;
+  g.setLineDash([5, 7]);
+  g.beginPath();
+  g.moveTo(0, DLIM);
+  g.lineTo(W, DLIM);
+  g.stroke();
+  g.restore();
+}
+
+function wouldCollide(x, y) {
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++) {
+      if (grid[r][c] === null) continue;
+      const dx = x - colX(c, r), dy = y - rowY(r);
+      if (dx * dx + dy * dy < (D - 2) * (D - 2)) return true;
+    }
+  return false;
+}
+
+/* Trajectoire pointillée avec rebonds, interrompue à la première collision */
+function drawAimGuide(g) {
+  if (!settings.guide || projectile) return;
+  let dx = aimX - SX, dy = aimY - SY;
+  if (dy >= -8) return;
+  const len = Math.hypot(dx, dy);
+  dx /= len; dy /= len;
+
+  g.save();
+  g.strokeStyle = 'rgba(255,255,255,0.3)';
+  g.lineWidth = 1.5;
+  g.setLineDash([8, 10]);
+  g.beginPath();
+  let x = SX, y = SY;
+  g.moveTo(x, y);
+  for (let i = 0; i < 300 && y > R; i++) {
+    x += dx * 14;
+    y += dy * 14;
+    if (x - R < 0) { x = R + (R - x); dx = -dx; }
+    if (x + R > W) { x = W - R - (x - (W - R)); dx = -dx; }
+    g.lineTo(x, y);
+    if (wouldCollide(x, y)) break;
+  }
+  g.stroke();
+  g.restore();
+}
+
+function drawAmmo(g, x, y, ammo, scale = 1) {
+  if (!ammo) return;
+  if (ammo.pu) drawPowerupBubble(g, x, y, ammo.pu, scale);
+  else drawBubble(g, x, y, ammo.color, 1, scale);
+}
+
+function drawShooter(g) {
+  let dx = aimX - SX, dy = aimY - SY;
+  if (dy >= 0) { dx = 0; dy = -1; }
+  const ang = Math.atan2(dy, dx);
+  g.save();
+  g.translate(SX, SY);
+  /* base circulaire */
+  g.beginPath();
+  g.arc(0, 0, 24, 0, Math.PI * 2);
+  const bg = g.createRadialGradient(-6, -6, 2, 0, 0, 24);
+  bg.addColorStop(0, '#7FB7FF');
+  bg.addColorStop(1, '#1F3C8C');
+  g.fillStyle = bg;
+  g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.25)';
+  g.lineWidth = 2;
+  g.stroke();
+  /* canon orienté */
+  g.rotate(ang + Math.PI / 2);
+  g.fillStyle = '#4A9EFF';
+  g.fillRect(-6, -R - 22, 12, R + 22);
+  g.fillStyle = '#8AC2FF';
+  g.fillRect(-3, -R - 22, 6, R + 22);
+  g.restore();
+  drawAmmo(g, SX, SY, shootAmmo, 0.75);
+}
+
+function drawNext(g) {
+  g.save();
+  g.font = '10px "Segoe UI", sans-serif';
+  g.fillStyle = 'rgba(255,255,255,0.5)';
+  g.textAlign = 'center';
+  g.fillText('SUIVANT', NX, NY - R - 10);
+  g.restore();
+  drawAmmo(g, NX, NY, nextAmmo, 0.62);
+}
+
+function drawLaser(g, p) {
+  g.save();
+  g.strokeStyle = '#FFE14A';
+  g.lineWidth = 6;
+  g.lineCap = 'round';
+  g.shadowColor = '#FFE14A';
+  g.shadowBlur = 14;
+  g.beginPath();
+  g.moveTo(p.x - p.vx * 3, p.y - p.vy * 3);
+  g.lineTo(p.x, p.y);
+  g.stroke();
+  g.restore();
+}
+
+/* Barre de progression de la prochaine descente (mode Classique) */
+function drawDropBar(g) {
+  if (mode !== 'classic') return;
+  const frozen = performance.now() < freezeUntil;
+  const ratio = Math.min(1, dropTimer / tierInterval(level));
+  g.save();
+  g.fillStyle = frozen ? 'rgba(127,219,255,0.8)' : 'rgba(74,158,255,0.6)';
+  g.fillRect(0, 0, W * (frozen ? 1 : 1 - ratio), 3);
+  if (frozen) {
+    g.font = '13px "Segoe UI", sans-serif';
+    g.textAlign = 'right';
+    g.fillStyle = '#7FDBFF';
+    g.fillText(`❄ ${Math.ceil((freezeUntil - performance.now()) / 1000)}s`, W - 8, 18);
+  }
+  g.restore();
+}
+
+function render() {
+  drawBG(ctx);
+
+  /* tremblement léger quand la grille frôle la ligne de danger */
+  const danger = grid.length > 0 && lowestBubbleY() > DLIM - ROW_H;
+  const shakeX = danger && !REDUCED_MOTION && gameState === 'play'
+    ? Math.sin(performance.now() / 50) * 2 : 0;
+
+  ctx.save();
+  ctx.translate(shakeX, 0);
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null)
+        drawBubble(ctx, colX(c, r), rowY(r), grid[r][c], 1, bubbleScale(r, c));
+  ctx.restore();
+
+  drawParticles(ctx);
+  drawDanger(ctx);
+
+  if (gameState === 'play' || gameState === 'pause') {
+    drawDropBar(ctx);
+    drawAimGuide(ctx);
+    drawShooter(ctx);
+    drawNext(ctx);
+    if (projectile) {
+      if (projectile.pu === 'laser') drawLaser(ctx, projectile);
+      else drawAmmo(ctx, projectile.x, projectile.y, projectile, 1);
+    }
+  }
+
+  drawFloatTexts(ctx);
+}
+
+/* ════ src/ui.js ════ */
+/* ── ui.js ─ overlays DOM : menus, pause, fin de partie, carte, paramètres ── */
+
+const OV = document.getElementById('overlay');
+const HUD = document.getElementById('hud');
+const hudScore = document.getElementById('hud-score');
+const hudMid = document.getElementById('hud-mid');
+const hudRight = document.getElementById('hud-right');
+const pauseBtn = document.getElementById('pause-btn');
+
+/* Petits constructeurs DOM — textContent uniquement, jamais d'innerHTML */
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+function btn(label, onClick, cls = 'btn') {
+  const b = el('button', cls, label);
+  b.addEventListener('click', () => { ensureAudio(); onClick(); });
+  return b;
+}
+
+function clearOverlay() { OV.replaceChildren(); }
+function showOverlay() { OV.style.display = 'flex'; }
+function hideOverlay() { OV.style.display = 'none'; }
+
+function fmt(n) { return n.toLocaleString('fr-FR'); }
+
+function updateHUD() {
+  hudScore.textContent = `Score : ${fmt(score)}`;
+  if (mode === 'classic') {
+    hudMid.textContent = `Niveau ${level}`;
+    hudRight.textContent = `Best : ${fmt(hiScore)}`;
+  } else {
+    hudMid.textContent = currentLevel ? currentLevel.name : '';
+    hudRight.textContent = `Tirs : ${shotsLeft}`;
+  }
+}
+
+/* ── Menu principal ─────────────────────────────────────────────────────── */
+function dailyDone() { return getDailyBest(todayKey()) > 0; }
+
+function showMenu() {
+  gameState = 'menu';
+  cancelAnimationFrame(rafId);
+  stopMusic();
+  HUD.hidden = true;
+  clearOverlay();
+
+  const h1 = el('h1', 'title');
+  h1.append('Microsoft', document.createElement('br'), 'Bubble');
+  OV.append(
+    h1,
+    el('p', 'subtitle', 'Visez, tirez, alignez 3 bulles ou plus de la même couleur pour les faire éclater !'),
+    btn('🏆 Classique', startClassic),
+    btn('🗺️ Aventure', showAdventureMap),
+    btn(dailyDone() ? '📅 Défi du jour ✓' : '📅 Défi du jour', startDaily),
+    btn('🥇 Classement', showLeaderboard, 'btn small'),
+    btn('⚙️ Paramètres', () => showSettings('menu'), 'btn small'),
+    el('p', 'stats',
+      `Meilleur score : ${fmt(getHi())} — Niveau max : ${Store.get('bubbleMaxLvl', 1)}`)
+  );
+  showOverlay();
+}
+
+/* ── Carte Aventure ─────────────────────────────────────────────────────── */
+function showAdventureMap() {
+  clearOverlay();
+  OV.append(el('h2', 'h2', '🗺️ Aventure'));
+  const map = el('div', 'map');
+  const progress = getAdvProgress();
+  const unlocked = advUnlockedCount();
+  for (const lvl of ADVENTURE_LEVELS) {
+    const locked = lvl.id > unlocked;
+    const cell = el('button', 'map-cell' + (locked ? ' locked' : ''));
+    cell.append(el('span', 'map-num', locked ? '🔒' : String(lvl.id)));
+    const st = progress.stars[lvl.id] || 0;
+    cell.append(el('span', 'map-stars', '★'.repeat(st) + '☆'.repeat(3 - st)));
+    cell.disabled = locked;
+    cell.setAttribute('aria-label',
+      locked ? `Niveau ${lvl.id} verrouillé` : `Jouer le niveau ${lvl.id} : ${lvl.name}`);
+    if (!locked) cell.addEventListener('click', () => { ensureAudio(); startAdventure(lvl.id); });
+    map.append(cell);
+  }
+  OV.append(map, btn('← Retour', showMenu, 'btn small'));
+  showOverlay();
+}
+
+/* ── Pause ──────────────────────────────────────────────────────────────── */
+function showPause() {
+  clearOverlay();
+  OV.append(
+    el('h2', 'h2', '⏸ Pause'),
+    el('p', 'big-score', `Score : ${fmt(score)}`),
+    el('p', 'best-score', `Meilleur : ${fmt(hiScore)}`),
+    btn('▶ Reprendre', resumeGame),
+    btn('↻ Recommencer', restartRound),
+    btn('⚙️ Paramètres', () => showSettings('pause'), 'btn small'),
+    btn('🏠 Menu', showMenu, 'btn small')
+  );
+  showOverlay();
+}
+
+/* ── Fin de partie ──────────────────────────────────────────────────────── */
+function showGameOver() {
+  HUD.hidden = true;
+  clearOverlay();
+  OV.append(
+    el('h2', 'h2 over', 'Game Over'),
+    el('p', 'big-score', `Score : ${fmt(score)}`)
+  );
+  if (mode === 'classic') OV.append(el('p', 'best-score', `Meilleur : ${fmt(hiScore)}`));
+  else OV.append(el('p', 'best-score', 'Plus de tirs ou ligne franchie !'));
+  OV.append(btn('↻ Rejouer', restartRound), btn('🏠 Menu', showMenu, 'btn small'));
+  showOverlay();
+}
+
+function showLevelComplete(starsEarned) {
+  HUD.hidden = true;
+  clearOverlay();
+  OV.append(
+    el('h2', 'h2 win', 'Niveau réussi !'),
+    el('p', 'stars-big', '★'.repeat(starsEarned) + '☆'.repeat(3 - starsEarned)),
+    el('p', 'big-score', `Score : ${fmt(score)}`)
+  );
+  if (mode === 'adventure' && currentLevel.id < ADVENTURE_LEVELS.length)
+    OV.append(btn('Suivant →', () => startAdventure(currentLevel.id + 1)));
+  if (mode === 'daily')
+    OV.append(el('p', 'best-score', `Meilleur du jour : ${fmt(getDailyBest(todayKey()))}`));
+  OV.append(btn('↻ Rejouer', restartRound, 'btn small'), btn('🏠 Menu', showMenu, 'btn small'));
+  showOverlay();
+}
+
+/* ── Paramètres ─────────────────────────────────────────────────────────── */
+function toggleRow(label, key, onChange) {
+  const row = el('div', 'set-row');
+  row.append(el('span', null, label));
+  const b = el('button', 'toggle' + (settings[key] ? ' on' : ''), settings[key] ? 'ON' : 'OFF');
+  b.setAttribute('aria-label', `${label} : ${settings[key] ? 'activé' : 'désactivé'}`);
+  b.addEventListener('click', () => {
+    settings[key] = !settings[key];
+    saveSettings();
+    b.textContent = settings[key] ? 'ON' : 'OFF';
+    b.classList.toggle('on', settings[key]);
+    if (onChange) onChange();
+  });
+  row.append(b);
+  return row;
+}
+
+function showSettings(backTo) {
+  clearOverlay();
+  OV.append(el('h2', 'h2', '⚙️ Paramètres'));
+  const box = el('div', 'set-box');
+  box.append(
+    toggleRow('Son', 'sound'),
+    toggleRow('Musique', 'music', () => (settings.music ? startMusic() : stopMusic())),
+    toggleRow('Vibrations', 'vibrate'),
+    toggleRow('Guide de visée', 'guide'),
+    toggleRow('Qualité graphique haute', 'gfxHigh')
+  );
+  OV.append(
+    box,
+    btn('Réinitialiser la progression', () => {
+      Store.remove('bubbleAdv');
+      Store.remove('bubbleMaxLvl');
+      showSettings(backTo);
+    }, 'btn danger small'),
+    btn('Effacer les scores', () => {
+      Store.remove('bubbleHi');
+      Store.remove('bubbleLB');
+      Store.remove('bubbleDaily');
+      hiScore = 0;
+      showSettings(backTo);
+    }, 'btn danger small'),
+    btn('← Retour', backTo === 'pause' ? showPause : showMenu, 'btn small')
+  );
+  showOverlay();
+}
+
+/* ── Classement ─────────────────────────────────────────────────────────── */
+function showLeaderboard() {
+  clearOverlay();
+  OV.append(el('h2', 'h2', '🥇 Classement'));
+  const list = el('div', 'lb');
+  const lb = getLeaderboard();
+  if (lb.length === 0) list.append(el('p', 'subtitle', 'Aucun score enregistré pour le moment.'));
+  lb.forEach((entry, i) => {
+    const row = el('div', 'lb-row');
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}.`;
+    row.append(
+      el('span', 'lb-rank', medal),
+      el('span', 'lb-name', entry.name),
+      el('span', 'lb-score', fmt(entry.score))
+    );
+    list.append(row);
+  });
+  OV.append(list, btn('← Retour', showMenu, 'btn small'));
+  showOverlay();
+}
+
+/* Saisie du nom quand le score entre dans le top 10 */
+function promptName(finalScore, finalLevel, after) {
+  clearOverlay();
+  OV.append(
+    el('h2', 'h2 win', 'Nouveau record !'),
+    el('p', 'big-score', `Score : ${fmt(finalScore)}`)
+  );
+  const input = el('input', 'name-input');
+  input.maxLength = 12;
+  input.placeholder = 'Votre nom';
+  input.setAttribute('aria-label', 'Votre nom pour le classement');
+  OV.append(input, btn('Valider', () => {
+    addLeaderboardEntry(input.value.trim() || 'Joueur', finalScore, finalLevel);
+    after();
+  }));
+  showOverlay();
+  input.focus();
+}
+
+/* ════ src/main.js ════ */
+/* ── main.js ─ état du jeu, boucle principale, tirs, résolution, entrées ── */
+
+let mode = 'classic';          // 'classic' | 'adventure' | 'daily'
+let gameState = 'menu';        // 'menu' | 'play' | 'pause' | 'over'
+let score = 0;
+let hiScore = getHi();
+let level = 1;
+let combo = 0;                 // pops consécutifs → multiplicateur
+let levelMiss = false;         // un tir raté annule le bonus « Perfect »
+let shotsLeft = 0;
+let currentLevel = null;       // niveau Adventure/Daily en cours
+let currentPalette = BASE_COLORS.slice(0, 4);
+let shootAmmo = null, nextAmmo = null;   // { color } ou { pu }
+let projectile = null;
+let aimX = SX, aimY = 0;
+let dropTimer = 0, freezeUntil = 0;
+let rafId = 0, lastTs = 0;
+
+/* ── Progression de difficulté (mode Classique) ─────────────────────────── */
+function tierInterval(lv) {
+  if (lv <= 1) return 15000;
+  if (lv <= 3) return 13000;
+  if (lv <= 6) return 11000;
+  if (lv <= 10) return 9000;
+  if (lv <= 15) return 7000;
+  return 5000;
+}
+function classicColors(lv) {
+  const n = lv <= 3 ? 4 : lv <= 10 ? 5 : lv <= 15 ? 6 : lv < 20 ? 7 : 8;
+  return BASE_COLORS.slice(0, n);
+}
+function classicRows(lv) {
+  if (lv <= 1) return 4;
+  if (lv <= 3) return 5;
+  if (lv <= 6) return 6;
+  if (lv <= 10) return 7;
+  if (lv <= 15) return 8;
+  return 9;
+}
+function powerupChance() {
+  if (mode === 'adventure') return 0.08;
+  if (mode === 'daily') return 0.10;
+  if (level <= 1) return 0;
+  if (level <= 3) return 0.05;
+  if (level <= 6) return 0.08;
+  if (level <= 10) return 0.10;
+  if (level <= 15) return 0.12;
+  return 0.15;
+}
+function scoreLevel() { return mode === 'classic' ? level : currentLevel.tier; }
+
+function genAmmo() {
+  if (Math.random() < powerupChance()) return randomPowerup();
+  return { color: currentPalette[Math.floor(Math.random() * currentPalette.length)] };
+}
+
+/* ── Démarrage des parties ──────────────────────────────────────────────── */
+function resetCommon() {
+  cancelAnimationFrame(rafId);
+  projectile = null;
+  particles = [];
+  floatTexts = [];
+  appearAnim.clear();
+  score = 0;
+  combo = 0;
+  levelMiss = false;
+  freezeUntil = 0;
+  dropTimer = 0;
+  aimX = SX;
+  aimY = 0;
+  hiScore = getHi();
+}
+
+function beginPlay() {
+  shootAmmo = genAmmo();
+  nextAmmo = genAmmo();
+  gameState = 'play';
+  hideOverlay();
+  HUD.hidden = false;
+  updateHUD();
+  startMusic();
+  lastTs = performance.now();
+  rafId = requestAnimationFrame(loop);
+}
+
+function startClassic() {
+  resetCommon();
+  mode = 'classic';
+  level = 1;
+  currentLevel = null;
+  currentPalette = classicColors(level);
+  topAbs = 0;
+  grid = makeGrid(classicRows(level), currentPalette);
+  beginPlay();
+}
+
+function loadLevel(lvl) {
+  currentLevel = lvl;
+  currentPalette = lvl.palette;
+  shotsLeft = lvl.maxShots;
+  topAbs = 0;
+  grid = lvl.rows.map(r => r.slice());
+  /* nettoie les éventuelles bulles flottantes du dessin initial */
+  findFloating().forEach(([r, c]) => { grid[r][c] = null; });
+}
+
+function startAdventure(id) {
+  resetCommon();
+  mode = 'adventure';
+  loadLevel(ADVENTURE_LEVELS[id - 1]);
+  beginPlay();
+}
+
+function startDaily() {
+  resetCommon();
+  mode = 'daily';
+  loadLevel(dailyLevel());
+  beginPlay();
+}
+
+function restartRound() {
+  if (mode === 'classic') startClassic();
+  else if (mode === 'daily') startDaily();
+  else startAdventure(currentLevel.id);
+}
+
+/* ── Boucle principale ──────────────────────────────────────────────────── */
+function loop(ts) {
+  if (gameState !== 'play') return;
+  const dt = Math.min(ts - lastTs, 50);
+  lastTs = ts;
+
+  if (projectile) stepProjectile();
+  updateParticles();
+
+  /* descente périodique de la grille en mode Classique (gelable par ❄️) */
+  if (gameState === 'play' && mode === 'classic') {
+    if (performance.now() >= freezeUntil) dropTimer += dt;
+    if (dropTimer >= tierInterval(level)) {
+      dropTimer = 0;
+      topAbs--;
+      grid.unshift(makeRow(currentPalette));
+      appearAnim.clear();
+      for (let c = 0; c < COLS; c++) markAppear(0, c);
+      if (isTooLow()) { endRound(false); return; }
+    }
+  }
+
+  if (gameState !== 'play') return;   // une résolution a pu terminer la partie
+  render();
+  rafId = requestAnimationFrame(loop);
+}
+
+/* ── Vol du projectile ──────────────────────────────────────────────────── */
+function stepProjectile() {
+  const p = projectile;
+  const steps = 2;                    // sous-pas anti-tunnel
+  for (let s = 0; s < steps && projectile; s++) {
+    p.x += p.vx / steps;
+    p.y += p.vy / steps;
+    if (p.x - R < 0) { p.x = R; p.vx = Math.abs(p.vx); }
+    if (p.x + R > W) { p.x = W - R; p.vx = -Math.abs(p.vx); }
+
+    if (p.pu === 'laser') {
+      /* le laser traverse et détruit tout sur son passage */
+      for (let r = 0; r < grid.length; r++)
+        for (let c = 0; c < COLS; c++) {
+          if (grid[r][c] === null) continue;
+          const dx = p.x - colX(c, r), dy = p.y - rowY(r);
+          if (dx * dx + dy * dy < (D * 0.9) * (D * 0.9))
+            popCell(r, c, 10 * scoreLevel());
+        }
+      if (p.y < -R) {
+        projectile = null;
+        dropFloating(scoreLevel());
+        combo++;
+        sfx.powerup();
+        finishShot();
+      }
+      continue;
+    }
+
+    if (p.y - R <= 0) { p.y = R; settle(null); return; }
+
+    let hitCell = null, bestD = Infinity;
+    for (let r = 0; r < grid.length; r++)
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] === null) continue;
+        const dx = p.x - colX(c, r), dy = p.y - rowY(r);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < (D - 1) * (D - 1) && d2 < bestD) { bestD = d2; hitCell = [r, c]; }
+      }
+    if (hitCell) { settle(hitCell); return; }
+  }
+}
+
+function popCell(r, c, pts) {
+  const color = grid[r][c];
+  if (color === null) return;
+  burst(colX(c, r), rowY(r), color);
+  grid[r][c] = null;
+  if (pts) score += pts;
+}
+
+function dropFloating(lvl) {
+  const fl = findFloating();
+  fl.forEach(([r, c]) => popCell(r, c, 5 * lvl));
+  return fl.length;
+}
+
+function vibrate(ms) {
+  if (settings.vibrate && navigator.vibrate) navigator.vibrate(ms);
+}
+
+/* ── Résolution à l'impact ──────────────────────────────────────────────── */
+function settle(hitCell) {
+  const p = projectile;
+  const mult = 1 + 0.5 * combo;
+  const lvl = scoreLevel();
+
+  if (p.pu === 'ice') {
+    /* gèle la descente pendant 10 s (utile en Classique) */
+    freezeUntil = performance.now() + 10000;
+    burst(p.x, p.y, '#7FDBFF', 16);
+    spawnFloatText(p.x, p.y, 'GEL !', '#7FDBFF');
+    sfx.powerup();
+    projectile = null;
+    finishShot();
+    return;
+  }
+
+  if (p.pu === 'bomb') {
+    const cells = bombCells(p.x, p.y);
+    cells.forEach(([r, c]) => popCell(r, c, Math.round(10 * lvl * mult)));
+    if (cells.length > 0) {
+      spawnFloatText(p.x, Math.max(30, p.y), `+${Math.round(cells.length * 10 * lvl * mult)}`);
+      dropFloating(lvl);
+      combo++;
+    }
+    sfx.powerup();
+    vibrate(30);
+    projectile = null;
+    finishShot();
+    return;
+  }
+
+  if (p.pu === 'fire') {
+    /* détruit le cluster touché quelle que soit sa taille */
+    if (hitCell) {
+      const [hr, hc] = hitCell;
+      const cells = cluster(hr, hc, grid[hr][hc]);
+      cells.forEach(([r, c]) => popCell(r, c, Math.round(10 * lvl * mult)));
+      spawnFloatText(p.x, Math.max(30, p.y), `+${Math.round(cells.length * 10 * lvl * mult)}`);
+      dropFloating(lvl);
+      combo++;
+      sfx.powerup();
+      vibrate(20);
+    } else {
+      burst(p.x, p.y, '#FF6B35', 14);
+    }
+    projectile = null;
+    finishShot();
+    return;
+  }
+
+  /* bulle normale ou arc-en-ciel : on snappe dans la grille */
+  const [sr, sc] = snapCell(p.x, p.y);
+  if (sr < 0) { projectile = null; finishShot(); return; }
+  while (grid.length <= sr) grid.push(Array(COLS).fill(null));
+  const color = p.pu === 'rainbow' ? bestRainbowColor(sr, sc) : p.color;
+  grid[sr][sc] = color;
+  markAppear(sr, sc);
+  projectile = null;
+
+  const hit = cluster(sr, sc, color);
+  if (hit.length >= 3) {
+    const pts = Math.round(hit.length * 10 * lvl * mult);
+    hit.forEach(([r, c]) => popCell(r, c, 0));
+    score += pts;
+    spawnFloatText(colX(sc, sr), Math.max(30, rowY(sr)), `+${pts}`);
+    sfx.pop(currentPalette.indexOf(color));
+    vibrate(15);
+    combo++;
+    if (combo >= 2) sfx.combo(combo);
+    dropFloating(lvl);
+  } else {
+    combo = 0;
+    levelMiss = true;
+  }
+  finishShot();
+}
+
+/* Vérifications communes après chaque tir résolu */
+function finishShot() {
+  if (countBubbles() === 0) { winLevel(); return; }
+  if (isTooLow()) { endRound(false); return; }
+  if (mode !== 'classic' && shotsLeft <= 0) { endRound(false); return; }
+  updateHUD();
+}
+
+/* ── Victoire de niveau ─────────────────────────────────────────────────── */
+function winLevel() {
+  const lvl = scoreLevel();
+  score += 500 * lvl;                                   // bonus de niveau
+  if (!levelMiss) {
+    score += 1000;                                       // bonus « Perfect »
+    spawnFloatText(SX, H / 2, 'PERFECT ! +1000', '#FFD700');
+  }
+  sfx.levelUp();
+
+  if (mode === 'classic') {
+    /* en Classique on enchaîne : nouvelle grille plus difficile */
+    spawnConfetti();
+    level++;
+    Store.set('bubbleMaxLvl', Math.max(Store.get('bubbleMaxLvl', 1), level));
+    levelMiss = false;
+    combo = 0;
+    currentPalette = classicColors(level);
+    topAbs = 0;
+    grid = makeGrid(classicRows(level), currentPalette);
+    appearAnim.clear();
+    dropTimer = 0;
+    freezeUntil = 0;
+    spawnFloatText(SX, H / 2 - 40, `NIVEAU ${level} !`, '#4A9EFF');
+    updateHUD();
+  } else {
+    endRound(true);
+  }
+}
+
+/* ── Fin de manche ──────────────────────────────────────────────────────── */
+function endRound(win) {
+  gameState = 'over';
+  cancelAnimationFrame(rafId);
+  stopMusic();
+
+  if (mode === 'classic') {
+    sfx.gameOver();
+    if (score > hiScore) { hiScore = score; setHi(score); }
+    render();
+    if (leaderboardQualifies(score)) promptName(score, level, showGameOver);
+    else showGameOver();
+    return;
+  }
+
+  if (win) {
+    const earned = Math.max(1, currentLevel.stars.filter(s => score >= s).length);
+    if (mode === 'adventure') {
+      const p = getAdvProgress();
+      p.stars[currentLevel.id] = Math.max(p.stars[currentLevel.id] || 0, earned);
+      saveAdvProgress(p);
+    } else {
+      setDailyBest(todayKey(), score);
+    }
+    spawnConfetti();
+    render();
+    showLevelComplete(earned);
+  } else {
+    sfx.gameOver();
+    render();
+    showGameOver();
+  }
+}
+
+/* ── Tir ────────────────────────────────────────────────────────────────── */
+function shoot(tx, ty) {
+  if (gameState !== 'play' || projectile) return;
+  const dx = tx - SX, dy = ty - SY;
+  if (dy >= -8) return;                       // pas de tir vers le bas
+  if (mode !== 'classic') {
+    if (shotsLeft <= 0) return;
+    shotsLeft--;
+  }
+  const len = Math.hypot(dx, dy);
+  projectile = Object.assign(
+    { x: SX, y: SY, vx: (dx / len) * SPD, vy: (dy / len) * SPD },
+    shootAmmo
+  );
+  shootAmmo = nextAmmo;
+  nextAmmo = genAmmo();
+  sfx.shoot();
+  updateHUD();
+}
+
+/* ── Pause / reprise ────────────────────────────────────────────────────── */
+function pauseGame() {
+  if (gameState !== 'play') return;
+  gameState = 'pause';
+  cancelAnimationFrame(rafId);
+  stopMusic();
+  showPause();
+}
+function resumeGame() {
+  if (gameState !== 'pause') return;
+  gameState = 'play';
+  hideOverlay();
+  startMusic();
+  lastTs = performance.now();
+  rafId = requestAnimationFrame(loop);
+}
+
+/* ── Entrées souris / tactile ───────────────────────────────────────────── */
+function cxy(e) {
+  const rect = CV.getBoundingClientRect();
+  const sx = W / rect.width, sy = H / rect.height;
+  const src = e.touches && e.touches.length ? e.touches[0]
+    : e.changedTouches && e.changedTouches.length ? e.changedTouches[0]
+    : e;
+  return [(src.clientX - rect.left) * sx, (src.clientY - rect.top) * sy];
+}
+
+CV.addEventListener('mousemove', e => { [aimX, aimY] = cxy(e); });
+CV.addEventListener('click', e => { ensureAudio(); shoot(...cxy(e)); });
+
+/* Tactile : glisser pour viser, relâcher pour tirer */
+CV.addEventListener('touchstart', e => {
+  e.preventDefault();
+  [aimX, aimY] = cxy(e);
+}, { passive: false });
+CV.addEventListener('touchmove', e => {
+  e.preventDefault();
+  [aimX, aimY] = cxy(e);
+}, { passive: false });
+CV.addEventListener('touchend', e => {
+  e.preventDefault();
+  ensureAudio();
+  shoot(aimX, aimY);
+}, { passive: false });
+
+pauseBtn.addEventListener('click', pauseGame);
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && gameState === 'play') pauseGame();
+});
+
+/* ── Mise à l'échelle responsive ────────────────────────────────────────── */
+function fitStage() {
+  const scale = Math.min(1,
+    (window.innerWidth - 8) / 424,
+    (window.innerHeight - 12) / 728);
+  document.getElementById('wrapper').style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', fitStage);
+
+/* ── Démarrage ──────────────────────────────────────────────────────────── */
+fitStage();
+render();
+showMenu();
+</script>
+</body>
+</html>
