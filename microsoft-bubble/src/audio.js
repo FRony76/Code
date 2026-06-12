@@ -64,24 +64,112 @@ const sfx = {
   powerup() { [392, 440, 523, 587, 659].forEach((f, i) => tone(f, 0.12, 'sine', 0.2, i * 0.05)); }
 };
 
-/* ── Boucle musicale : synthwave sombre arcade 16 bits, en boucle ──
-   Hommage original dans l'esprit « Night Prowler » de Carpenter Brut :
+/* ── Musique : boucles synthwave sombres arcade 16 bits ──
+   Hommages originaux dans l'esprit « Night Prowler » de Carpenter Brut :
    basse galopante à l'octave, grosse caisse quatre-temps, lead carré
-   chiptune en mi mineur. Désactivable dans les paramètres. */
-const MUSIC_BPM = 126;
-const M_STEP = 60 / MUSIC_BPM / 4;   // durée d'une double-croche (s)
+   chiptune en mode mineur. Une piste tirée au hasard à chaque niveau,
+   jamais deux fois la même d'affilée. Désactivable dans les paramètres. */
 const M_LOOKAHEAD = 0.15;            // avance de planification (s)
 
-/* Progression sur 4 mesures : Em → C → D → Bm (fondamentales en Hz) */
-const BASS_ROOTS = [82.41, 65.41, 73.42, 61.74]; // E2 C2 D2 B1
-
-/* Mélodie « rôdeuse », 64 double-croches (0 = silence) */
-const LEAD_SEQ = [
-  329.6, 0, 0, 0, 392.0, 0, 329.6, 0, 493.9, 0, 440.0, 0, 392.0, 0, 329.6, 0,
-  523.3, 0, 0, 0, 493.9, 0, 392.0, 0, 440.0, 0, 392.0, 0, 329.6, 0, 0, 0,
-  587.3, 0, 0, 0, 440.0, 0, 493.9, 0, 440.0, 0, 392.0, 0, 370.0, 0, 0, 0,
-  493.9, 0, 370.0, 0, 493.9, 0, 587.3, 0, 523.3, 0, 493.9, 0, 440.0, 0, 392.0, 0
+/* 21 pistes : bpm, fondamentales des 4 mesures, mélodie en 32 croches
+   ('.' = silence). La piste 0 est l'originale, les suivantes plus rapides. */
+const MUSIC_TRACKS = [
+  { bpm: 126, roots: 'E2 C2 D2 B1', lead: `
+    E4 .  G4 E4 B4 A4 G4  E4   C5 .  B4  G4 A4 G4  E4  .
+    D5 .  A4 B4 A4 G4 F#4 .    B4 F#4 B4 D5 C5 B4  A4  G4` },
+  { bpm: 144, roots: 'A1 F2 G2 E2', lead: `
+    A4 .  C5 A4 E5 D5 C5  A4   F4 .   A4 C5 D5 C5  A4  .
+    G4 .  B4 D5 C5 B4 G4  .    E4 G#4 B4 E5 D5 C5  B4  G#4` },
+  { bpm: 138, roots: 'D2 Bb1 C2 A1', lead: `
+    D4 .  F4 D4 A4 G4 F4  D4   Bb4 .  A4 F4  G4  F4  D4 .
+    C5 .  G4 A4 G4 F4 E4  .    A4  E4 A4 C#5 D5  C#5 A4 E4` },
+  { bpm: 146, roots: 'E2 G2 A2 B1', lead: `
+    E5 D5 B4 .  E5 D5 B4  .    G4 B4  D5 .   G4 B4  D5  .
+    A4 C5 E5 .  D5 C5 A4  .    B4 .   F#4 A4 B4 D#5 F#5 .` },
+  { bpm: 140, roots: 'B1 D2 E2 F#2', lead: `
+    B4 .  D5 B4 F#5 E5  D5  B4   D5  .   F#4 A4  B4  A4 F#4 .
+    E4 .  G4 B4 C#5 B4  G4  .    F#4 A#4 C#5 F#5 E5  D5 C#5 A#4` },
+  { bpm: 142, roots: 'C2 Ab2 Bb1 G2', lead: `
+    C5  .  Eb5 C5 G4  .  Bb4 G4   Ab4 .  C5 Eb5 D5 C5  Ab4 .
+    Bb4 .  D5  F5 Eb5 D5 Bb4 .    G4  B4 D5 G5  F5 Eb5 D5  B4` },
+  { bpm: 150, roots: 'A1 G2 F2 E2', lead: `
+    E5 .  C5 E5 A4 .  C5  A4   D5 .  B4  D5 G4 .   B4 G4
+    C5 .  A4 C5 F4 .  A4  F4   B4 .  G#4 B4 E4 G#4 B4 D5` },
+  { bpm: 136, roots: 'F#2 D2 E2 C#2', lead: `
+    F#4 .  A4  F#4 C#5 B4  A4 F#4   D4  .   F#4 A4  B4  A4 F#4 .
+    E4  .  G#4 B4  A4  G#4 E4 .     C#5 G#4 E4  G#4 C#5 D5 C#5 B4` },
+  { bpm: 148, roots: 'G2 Eb2 F2 D2', lead: `
+    G4 .   Bb4 G4 D5 C5 Bb4 G4   Eb5 .   D5 Bb4 C5 Bb4 G4 .
+    F4 .   A4  C5 D5 C5 A4  .    D5  F#4 A4 D5  C5 Bb4 A4 F#4` },
+  { bpm: 152, roots: 'E2 C2 G2 B1', lead: `
+    B4 E4 B4 E4 C5 E4 C5 E4   G4  C5 E5  .  E5 .   D5 C5
+    G4 D4 G4 B4 D5 .  B4 G4   F#4 B4 D#5 .  E5 D#5 B4 F#4` },
+  { bpm: 134, roots: 'A1 C2 D2 F2', lead: `
+    A4 C5 E5 .  E5 .  D5 C5   E4 G4 C5 .  C5 .  B4 G4
+    D4 F4 A4 .  A4 .  G4 F4   F4 A4 C5 F5 E5 D5 C5 B4` },
+  { bpm: 144, roots: 'D2 F2 G2 Bb1', lead: `
+    D5 .  A4  .  D5 .   C5 A4   F4  A4 C5 .  F5 E5  C5 A4
+    G4 .  Bb4 D5 C5 Bb4 G4 .    Bb4 D5 F5 .  E5 C#5 A4 C#5` },
+  { bpm: 138, roots: 'B1 G2 E2 F#2', lead: `
+    F#5 .  D5 F#5 B4  .  D5 B4   G4  B4 D5  G5  F#5 E5 D5 B4
+    E4  G4 B4 .   C#5 B4 G4 E4   F#4 .  A#4 C#5 F#5 .  E5 C#5` },
+  { bpm: 148, roots: 'E2 D2 C2 B1', lead: `
+    E4 G4  B4  E5 .  D5  B4 G4   D4 F#4 A4  D5 .  C5  A4 F#4
+    C4 E4  G4  C5 .  B4  G4 E4   B4 D#5 F#5 .  E5 D#5 B4 A4` },
+  { bpm: 132, roots: 'C2 Eb2 F2 G2', lead: `
+    C5 Eb5 G4  .  C5 Eb5 G4 .    Eb4 G4 Bb4 .  Eb5 D5  Bb4 G4
+    F4 Ab4 C5  .  F5 Eb5 C5 Ab4  G4  B4 D5  F5 Eb5 D5  B4  G4` },
+  { bpm: 146, roots: 'A1 E2 F2 G2', lead: `
+    A4 .  A4 B4 C5 .  C5 D5   E5 .  E5 D5 C5 .  B4 A4
+    F4 A4 C5 E5 F5 E5 C5 A4   G4 B4 D5 .  G5 F5 D5 B4` },
+  { bpm: 142, roots: 'F#2 A2 B1 C#2', lead: `
+    C#5 .  A4  C#5 F#5 .  E5  C#5   A4  .   E4 A4  C#5 .  B4  A4
+    B4  .  F#4 B4  D5  .  C#5 B4    G#4 C#5 F5 G#5 F5  E5 C#5 B4` },
+  { bpm: 150, roots: 'G2 Bb1 C2 D2', lead: `
+    G4 Bb4 D5 G5 .  F5  D5 Bb4   Bb4 D5 F5  .  F5 .   D5  Bb4
+    C5 Eb5 G5 .  F5 Eb5 C5 .     D5  .  F#4 A4 D5 C5  Bb4 F#4` },
+  { bpm: 140, roots: 'E2 B1 C2 A1', lead: `
+    G5 F#5 E5 .  B4 .  E5 .    F#5 E5 D#5 .  B4 .  D#5 .
+    G4 A4  B4 C5 .  B4 A4 G4   A4  B4 C5  D5 E5 .  B4  A4` },
+  { bpm: 152, roots: 'D2 A1 Bb1 C2', lead: `
+    D5  .  D5 E5 F5 .  E5 D5    A4 .  C#5 E5 A5 G5 F5 E5
+    Bb4 .  D5 F5 .  E5 D5 Bb4   C5 .  E5  G5 F5 E5 D5 C5` },
+  { bpm: 136, roots: 'A1 Bb1 C2 E2', lead: `
+    A4 Bb4 A4 .  E4 .  A4 .   Bb4 C5 Bb4 .   F4 .   Bb4 .
+    C5 D5  C5 .  G4 .  C5 .   E5  D5 C5  Bb4 A4 G#4 A4  B4` }
 ];
+
+/* 'E4', 'Bb1', 'F#5' → fréquence en Hz ; '.' → 0 (silence) */
+function noteHz(n) {
+  if (n === '.') return 0;
+  const m = /^([A-G])([#b]?)(\d)$/.exec(n);
+  const semi = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[m[1]]
+    + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
+  return 440 * Math.pow(2, ((+m[3] + 1) * 12 + semi - 69) / 12);
+}
+
+let mTrack = null;        // piste décodée en cours de lecture
+let lastTrackIdx = -1;
+
+function decodeTrack(i) {
+  const t = MUSIC_TRACKS[i];
+  const roots = t.roots.trim().split(/\s+/).map(noteHz);
+  const lead = [];
+  t.lead.trim().split(/\s+/).forEach(tok => lead.push(noteHz(tok), 0)); // croche → 2 double-croches
+  const loopLen = roots.length * 16;
+  while (lead.length < loopLen) lead.push(0);
+  lead.length = loopLen;
+  return { step: 60 / t.bpm / 4, roots, lead, loopLen };
+}
+
+/* Tire une nouvelle piste au hasard, jamais deux fois la même d'affilée */
+function nextMusicTrack() {
+  let i;
+  do { i = Math.floor(Math.random() * MUSIC_TRACKS.length); }
+  while (MUSIC_TRACKS.length > 1 && i === lastTrackIdx);
+  lastTrackIdx = i;
+  mTrack = decodeTrack(i);
+}
 
 /* Grosse caisse : sinus en chute de hauteur, planifiée à t+when */
 function kickDrum(when) {
@@ -122,20 +210,21 @@ function hatNoise(when, dur = 0.03, vol = 0.04) {
 
 /* Planifie une double-croche de la boucle (when = délai relatif en s) */
 function scheduleMusicStep(step, when) {
-  const bar = Math.floor(step / 16) % 4;
-  const s = step % 16;
-  const root = BASS_ROOTS[bar];
+  const p = step % mTrack.loopLen;
+  const root = mTrack.roots[Math.floor(p / 16)];
+  const s = p % 16;
+  const st = mTrack.step;
   /* basse galopante : fondamentale, l'octave sur le 3e seizième de chaque temps */
-  tone(s % 4 === 2 ? root * 2 : root, M_STEP * 0.85, 'square', 0.055, when);
+  tone(s % 4 === 2 ? root * 2 : root, st * 0.85, 'square', 0.055, when);
   if (s % 4 === 0) kickDrum(when);
   if (s % 4 === 2) hatNoise(when);
   /* nappe : quinte tenue sur toute la mesure */
   if (s === 0) {
-    tone(root * 2, M_STEP * 16, 'sawtooth', 0.025, when);
-    tone(root * 3, M_STEP * 16, 'sawtooth', 0.018, when);
+    tone(root * 2, st * 16, 'sawtooth', 0.025, when);
+    tone(root * 3, st * 16, 'sawtooth', 0.018, when);
   }
-  const lead = LEAD_SEQ[step % LEAD_SEQ.length];
-  if (lead) tone(lead, M_STEP * 2.5, 'square', 0.045, when);
+  const lead = mTrack.lead[p];
+  if (lead) tone(lead, st * 2.5, 'square', 0.045, when);
 }
 
 function startMusic() {
@@ -143,13 +232,14 @@ function startMusic() {
   if (!settings.music) return;
   const ac = ensureAudio();
   if (!ac) return;
+  if (!mTrack) nextMusicTrack();
   musicStep = 0;
   let nextT = ac.currentTime + 0.05;
   musicTimer = setInterval(() => {
     if (!settings.music) { stopMusic(); return; }
     while (nextT < ac.currentTime + M_LOOKAHEAD) {
       scheduleMusicStep(musicStep, Math.max(0, nextT - ac.currentTime));
-      nextT += M_STEP;
+      nextT += mTrack.step;
       musicStep++;
     }
   }, 40);

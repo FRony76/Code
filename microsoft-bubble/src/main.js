@@ -155,6 +155,7 @@ function beginPlay() {
   hideOverlay();
   HUD.hidden = false;
   updateHUD();
+  nextMusicTrack();
   startMusic();
   rafId = requestAnimationFrame(loop);
 }
@@ -478,6 +479,8 @@ function winLevel(preCount = 0) {
     scatterSpecialBubbles();
     appearAnim.clear();
     initLevelScroll();
+    nextMusicTrack();
+    startMusic();
     spawnFloatText(SX, H / 2 - 40, `NIVEAU ${level} !`, '#4A9EFF');
     updateHUD();
   } else {
