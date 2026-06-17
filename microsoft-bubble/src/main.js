@@ -380,13 +380,20 @@ function settle(hitCell) {
   }
 
   if (p.pu === 'fire') {
-    /* détruit le cluster touché quelle que soit sa taille */
+    /* détruit TOUTES les billes de la même couleur sur toute la grille */
     if (hitCell) {
       const [hr, hc] = hitCell;
       const fireColor = effectiveColor(grid[hr][hc]);
-      const cells = fireColor ? cluster(hr, hc, fireColor) : [[hr, hc]];
+      const cells = [];
+      if (fireColor) {
+        for (let r = 0; r < grid.length; r++)
+          for (let c = 0; c < COLS; c++)
+            if (effectiveColor(grid[r][c]) === fireColor) cells.push([r, c]);
+      } else {
+        cells.push([hr, hc]);
+      }
       cells.forEach(([r, c]) => popCell(r, c, Math.round(10 * lvl * mult)));
-      spawnFloatText(p.x, Math.max(30, p.y), `+${Math.round(cells.length * 10 * lvl * mult)}`);
+      spawnFloatText(p.x, Math.max(30, p.y), `🔥 ×${cells.length}`);
       dropFloating(lvl);
       combo++;
       sfx.powerup();

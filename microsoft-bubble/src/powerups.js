@@ -9,18 +9,35 @@ function randomPowerup() {
   return { pu: POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)] };
 }
 
-/* Cellules détruites par la bombe : rayon 3R autour du point d'impact */
+/* Cellules détruites par la bombe : rayon primaire 4R, puis chaque bille
+   détruite génère une micro-explosion secondaire à 1.5R (double explosion). */
 function bombCells(x, y) {
-  const out = [];
-  const radius2 = (R * 3) * (R * 3);
-  for (let r = 0; r < grid.length; r++) {
+  const r1sq = (R * 4) * (R * 4);
+  const r2sq = (R * 1.5) * (R * 1.5);
+  const killed = new Set();
+
+  /* Passe 1 : rayon primaire 4R */
+  for (let r = 0; r < grid.length; r++)
     for (let c = 0; c < COLS; c++) {
       if (grid[r][c] === null) continue;
       const dx = x - colX(c, r), dy = y - rowY(r);
-      if (dx * dx + dy * dy <= radius2) out.push([r, c]);
+      if (dx * dx + dy * dy <= r1sq) killed.add(r * 100 + c);
     }
+
+  /* Passe 2 : micro-explosion 1.5R autour de chaque bille primaire */
+  const primary = [...killed];
+  for (const k of primary) {
+    const pr = Math.floor(k / 100), pc = k % 100;
+    const ex = colX(pc, pr), ey = rowY(pr);
+    for (let r = 0; r < grid.length; r++)
+      for (let c = 0; c < COLS; c++) {
+        if (grid[r][c] === null || killed.has(r * 100 + c)) continue;
+        const dx = ex - colX(c, r), dy = ey - rowY(r);
+        if (dx * dx + dy * dy <= r2sq) killed.add(r * 100 + c);
+      }
   }
-  return out;
+
+  return [...killed].map(k => [Math.floor(k / 100), k % 100]);
 }
 
 /* Arc-en-ciel : essaie chaque couleur voisine et garde celle
