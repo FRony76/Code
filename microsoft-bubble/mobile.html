@@ -245,7 +245,7 @@ canvas {
 /* ── build.js ─ numéro de build affiché à l'écran ──
    Permet de vérifier que la version installée (cellulaire, cache) est à jour.
    À incrémenter à chaque livraison. */
-const BUILD = '2026.06.17-3';
+const BUILD = '2026.06.17-4';
 </script>
 <script>
 'use strict';
@@ -1331,6 +1331,71 @@ function drawPowerMark(g) {
   g.restore();
 }
 
+/* Bandeau fixe en haut du canvas quand la rangée 0 (Power Line) est hors écran.
+   Affiche les billes de la rangée 0 en miniature + mise en évidence de la bille bonus. */
+function drawPowerLineHeader(g) {
+  if (!grid.length || rowY(0) >= 0) return;          // rangée 0 visible → pas de bandeau
+  if (!grid[0].some(c => c !== null)) return;         // rangée 0 vide
+
+  const BAND_H = Math.round(ROW_H) + 4;              // ≈ 39 px
+  const SCALE = 0.62;
+
+  g.save();
+  g.fillStyle = 'rgba(0,8,32,0.88)';
+  g.fillRect(0, 0, W, BAND_H);
+  g.strokeStyle = 'rgba(127,219,255,0.5)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(0, BAND_H - 0.5);
+  g.lineTo(W, BAND_H - 0.5);
+  g.stroke();
+
+  /* Étiquette à gauche */
+  const LABEL_W = 72;
+  g.font = 'bold 8px "Segoe UI",sans-serif';
+  g.fillStyle = 'rgba(127,219,255,0.85)';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('⚡ POWER LINE', LABEL_W / 2, BAND_H / 2);
+  g.strokeStyle = 'rgba(127,219,255,0.25)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(LABEL_W, 2);
+  g.lineTo(LABEL_W, BAND_H - 2);
+  g.stroke();
+
+  /* Billes de la rangée 0 en miniature */
+  const yOff = BAND_H / 2;
+  for (let c = 0; c < COLS; c++) {
+    const cell = grid[0][c];
+    if (cell === null) continue;
+    const x = colX(c, 0);
+    if (typeof cell === 'string')        drawBubble(g, x, yOff, cell, 0.9, SCALE);
+    else if (cell.type === 'spike')      drawSpikeBubble(g, x, yOff, SCALE);
+    else if (cell.type === 'chameleon')  drawChameleonBubble(g, x, yOff, cell.color, SCALE);
+    /* Anneau pulsant sur la bille bonus */
+    if (powerCell && powerCell.r === 0 && powerCell.c === c) {
+      const pulse = REDUCED_MOTION ? 0.8 : 0.6 + 0.4 * Math.sin(performance.now() / 200);
+      g.save();
+      g.beginPath();
+      g.arc(x, yOff, R * SCALE + 2, 0, Math.PI * 2);
+      g.strokeStyle = `rgba(127,219,255,${pulse})`;
+      g.lineWidth = 2;
+      g.shadowColor = '#7FDBFF';
+      g.shadowBlur = 8;
+      g.stroke();
+      g.shadowBlur = 0;
+      g.font = '9px serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = 'rgba(255,255,255,0.9)';
+      g.fillText('⚡', x, yOff + 0.5);
+      g.restore();
+    }
+  }
+  g.restore();
+}
+
 function render() {
   drawBG(ctx);
 
@@ -1353,6 +1418,7 @@ function render() {
   drawPowerMark(ctx);
   ctx.restore();
 
+  drawPowerLineHeader(ctx);   // bandeau fixe en haut si la rangée 0 est hors écran
   drawParticles(ctx);
   drawDanger(ctx);
 
@@ -1714,11 +1780,17 @@ function scatterSpecialBubbles() {
   for (let i = 0; i < chamCount; i++)  place({ type: 'chameleon', color: null });
 }
 
-/* Lance l'animation d'entrée de la grille (glisse depuis le haut vers Y=0).
-   Row 0 atterrit à Y=R=20px : Power Line toujours visible après l'intro. */
+/* Lance l'animation d'entrée de la grille (glisse depuis le haut).
+   Cible : bille la plus basse à SY - 2H/3, laissant 2/3 d'espace vide pour viser.
+   La rangée 0 (Power Line) peut être hors écran → affichée dans le bandeau fixe. */
 function initLevelScroll() {
-  gridIntroTarget = 0;
-  gridScrollY = H * 0.85;   // démarre hors écran en haut
+  let lowestRow = 0;
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null) lowestRow = Math.max(lowestRow, r);
+  const lowestAt0 = R + lowestRow * ROW_H + R;
+  gridIntroTarget = Math.max(0, lowestAt0 - (SY - 2 * H / 3));
+  gridScrollY = H * 0.85;
   introActive = true;
 }
 
@@ -1818,10 +1890,16 @@ function restartRound() {
 /* ── Boucle principale ──────────────────────────────────────────────────── */
 function loop() {
   if (gameState !== 'play') return;
-  /* animation d'entrée : la grille descend depuis le haut */
+  /* animation d'entrée : la grille descend jusqu'à la cible calculée */
   if (introActive) {
-    gridScrollY = Math.max(0, gridScrollY - 10);
-    if (gridScrollY <= 0) { introActive = false; gridScrollY = 0; }
+    gridScrollY = Math.max(gridIntroTarget, gridScrollY - 10);
+    if (gridScrollY <= gridIntroTarget) { introActive = false; gridScrollY = gridIntroTarget; }
+  } else if (!projectile) {
+    /* scroll dynamique : maintient 2/3 d'espace vide sous la dernière bille */
+    const lby0 = lowestBubbleY() + gridScrollY;   // Y de la bille la plus basse à scroll=0
+    const tgt = Math.max(0, lby0 - (SY - 2 * H / 3));
+    if (gridScrollY > tgt + 0.5) gridScrollY = Math.max(tgt, gridScrollY - 2);
+    else gridScrollY = tgt;
   }
   if (projectile) stepProjectile();
   updateParticles();

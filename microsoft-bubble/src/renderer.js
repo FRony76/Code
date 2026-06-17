@@ -330,6 +330,71 @@ function drawPowerMark(g) {
   g.restore();
 }
 
+/* Bandeau fixe en haut du canvas quand la rangée 0 (Power Line) est hors écran.
+   Affiche les billes de la rangée 0 en miniature + mise en évidence de la bille bonus. */
+function drawPowerLineHeader(g) {
+  if (!grid.length || rowY(0) >= 0) return;          // rangée 0 visible → pas de bandeau
+  if (!grid[0].some(c => c !== null)) return;         // rangée 0 vide
+
+  const BAND_H = Math.round(ROW_H) + 4;              // ≈ 39 px
+  const SCALE = 0.62;
+
+  g.save();
+  g.fillStyle = 'rgba(0,8,32,0.88)';
+  g.fillRect(0, 0, W, BAND_H);
+  g.strokeStyle = 'rgba(127,219,255,0.5)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(0, BAND_H - 0.5);
+  g.lineTo(W, BAND_H - 0.5);
+  g.stroke();
+
+  /* Étiquette à gauche */
+  const LABEL_W = 72;
+  g.font = 'bold 8px "Segoe UI",sans-serif';
+  g.fillStyle = 'rgba(127,219,255,0.85)';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  g.fillText('⚡ POWER LINE', LABEL_W / 2, BAND_H / 2);
+  g.strokeStyle = 'rgba(127,219,255,0.25)';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(LABEL_W, 2);
+  g.lineTo(LABEL_W, BAND_H - 2);
+  g.stroke();
+
+  /* Billes de la rangée 0 en miniature */
+  const yOff = BAND_H / 2;
+  for (let c = 0; c < COLS; c++) {
+    const cell = grid[0][c];
+    if (cell === null) continue;
+    const x = colX(c, 0);
+    if (typeof cell === 'string')        drawBubble(g, x, yOff, cell, 0.9, SCALE);
+    else if (cell.type === 'spike')      drawSpikeBubble(g, x, yOff, SCALE);
+    else if (cell.type === 'chameleon')  drawChameleonBubble(g, x, yOff, cell.color, SCALE);
+    /* Anneau pulsant sur la bille bonus */
+    if (powerCell && powerCell.r === 0 && powerCell.c === c) {
+      const pulse = REDUCED_MOTION ? 0.8 : 0.6 + 0.4 * Math.sin(performance.now() / 200);
+      g.save();
+      g.beginPath();
+      g.arc(x, yOff, R * SCALE + 2, 0, Math.PI * 2);
+      g.strokeStyle = `rgba(127,219,255,${pulse})`;
+      g.lineWidth = 2;
+      g.shadowColor = '#7FDBFF';
+      g.shadowBlur = 8;
+      g.stroke();
+      g.shadowBlur = 0;
+      g.font = '9px serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillStyle = 'rgba(255,255,255,0.9)';
+      g.fillText('⚡', x, yOff + 0.5);
+      g.restore();
+    }
+  }
+  g.restore();
+}
+
 function render() {
   drawBG(ctx);
 
@@ -352,6 +417,7 @@ function render() {
   drawPowerMark(ctx);
   ctx.restore();
 
+  drawPowerLineHeader(ctx);   // bandeau fixe en haut si la rangée 0 est hors écran
   drawParticles(ctx);
   drawDanger(ctx);
 

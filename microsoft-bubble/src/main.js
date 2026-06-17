@@ -108,11 +108,17 @@ function scatterSpecialBubbles() {
   for (let i = 0; i < chamCount; i++)  place({ type: 'chameleon', color: null });
 }
 
-/* Lance l'animation d'entrée de la grille (glisse depuis le haut vers Y=0).
-   Row 0 atterrit à Y=R=20px : Power Line toujours visible après l'intro. */
+/* Lance l'animation d'entrée de la grille (glisse depuis le haut).
+   Cible : bille la plus basse à SY - 2H/3, laissant 2/3 d'espace vide pour viser.
+   La rangée 0 (Power Line) peut être hors écran → affichée dans le bandeau fixe. */
 function initLevelScroll() {
-  gridIntroTarget = 0;
-  gridScrollY = H * 0.85;   // démarre hors écran en haut
+  let lowestRow = 0;
+  for (let r = 0; r < grid.length; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] !== null) lowestRow = Math.max(lowestRow, r);
+  const lowestAt0 = R + lowestRow * ROW_H + R;
+  gridIntroTarget = Math.max(0, lowestAt0 - (SY - 2 * H / 3));
+  gridScrollY = H * 0.85;
   introActive = true;
 }
 
@@ -212,10 +218,16 @@ function restartRound() {
 /* ── Boucle principale ──────────────────────────────────────────────────── */
 function loop() {
   if (gameState !== 'play') return;
-  /* animation d'entrée : la grille descend depuis le haut */
+  /* animation d'entrée : la grille descend jusqu'à la cible calculée */
   if (introActive) {
-    gridScrollY = Math.max(0, gridScrollY - 10);
-    if (gridScrollY <= 0) { introActive = false; gridScrollY = 0; }
+    gridScrollY = Math.max(gridIntroTarget, gridScrollY - 10);
+    if (gridScrollY <= gridIntroTarget) { introActive = false; gridScrollY = gridIntroTarget; }
+  } else if (!projectile) {
+    /* scroll dynamique : maintient 2/3 d'espace vide sous la dernière bille */
+    const lby0 = lowestBubbleY() + gridScrollY;   // Y de la bille la plus basse à scroll=0
+    const tgt = Math.max(0, lby0 - (SY - 2 * H / 3));
+    if (gridScrollY > tgt + 0.5) gridScrollY = Math.max(tgt, gridScrollY - 2);
+    else gridScrollY = tgt;
   }
   if (projectile) stepProjectile();
   updateParticles();
