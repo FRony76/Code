@@ -1991,7 +1991,21 @@ function settle(hitCell) {
     return;
   }
 
-  /* bulle normale ou arc-en-ciel : on snappe dans la grille */
+  /* bulle normale ou arc-en-ciel : une spike détruit la bille entrante */
+  if (hitCell) {
+    const [hr, hc] = hitCell;
+    const cell = grid[hr][hc];
+    if (cell && typeof cell === 'object' && cell.type === 'spike') {
+      burst(p.x, p.y, p.color || '#AAAAAA', 10);
+      combo = 0;
+      levelMiss = true;
+      projectile = null;
+      finishShot();
+      return;
+    }
+  }
+
+  /* snappe dans la grille */
   const [sr, sc] = snapCell(p.x, p.y);
   if (sr < 0) { projectile = null; finishShot(); return; }
   while (grid.length <= sr) grid.push(Array(COLS).fill(null));
