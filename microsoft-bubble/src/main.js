@@ -30,12 +30,6 @@ function classicColors(lv) {
   return BASE_COLORS.slice(0, n);
 }
 function classicRows(lv) {
-  if (lv <= 1)  return 4;
-  if (lv <= 2)  return 5;
-  if (lv <= 4)  return 6;
-  if (lv <= 6)  return 7;
-  if (lv <= 9)  return 8;
-  if (lv <= 12) return 9;
   if (lv <= 15) return 10;
   if (lv <= 19) return 11;
   if (lv <= 24) return 12;
