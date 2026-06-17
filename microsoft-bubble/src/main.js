@@ -437,6 +437,25 @@ function settle(hitCell) {
   const [sr, sc] = snapCell(p.x, p.y);
   if (sr < 0) { projectile = null; finishShot(); return; }
   while (grid.length <= sr) grid.push(Array(COLS).fill(null));
+
+  /* cas 2 : la bille se snappe DANS UN SLOT ADJACENT à une spike
+     (la bille a touché un voisin de la spike avant de l'atteindre) */
+  for (const [nr, nc] of neighbours(sr, sc)) {
+    const nb = grid[nr][nc];
+    if (nb && typeof nb === 'object' && nb.type === 'spike') {
+      burst(p.x, p.y, p.color || '#AAAAAA', 16);
+      burst(colX(nc, nr), rowY(nr), '#C0392B', 8);
+      spawnFloatText(p.x, Math.max(30, p.y), '✸ AÏE !', '#E74C3C');
+      sfx.spike();
+      vibrate(35);
+      combo = 0;
+      levelMiss = true;
+      projectile = null;
+      finishShot();
+      return;
+    }
+  }
+
   const color = p.pu === 'rainbow' ? bestRainbowColor(sr, sc) : p.color;
   grid[sr][sc] = color;
   markAppear(sr, sc);
