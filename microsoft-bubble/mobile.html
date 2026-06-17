@@ -245,7 +245,7 @@ canvas {
 /* ── build.js ─ numéro de build affiché à l'écran ──
    Permet de vérifier que la version installée (cellulaire, cache) est à jour.
    À incrémenter à chaque livraison. */
-const BUILD = '2026.06.17-4';
+const BUILD = '2026.06.17-5';
 </script>
 <script>
 'use strict';
@@ -1781,15 +1781,10 @@ function scatterSpecialBubbles() {
 }
 
 /* Lance l'animation d'entrée de la grille (glisse depuis le haut).
-   Cible : bille la plus basse à SY - 2H/3, laissant 2/3 d'espace vide pour viser.
-   La rangée 0 (Power Line) peut être hors écran → affichée dans le bandeau fixe. */
+   Cible : jusqu'à 10 rangées visibles simultanément ; les rangées supérieures
+   (dont la rangée 0 / Power Line) passent dans le bandeau fixe si nécessaire. */
 function initLevelScroll() {
-  let lowestRow = 0;
-  for (let r = 0; r < grid.length; r++)
-    for (let c = 0; c < COLS; c++)
-      if (grid[r][c] !== null) lowestRow = Math.max(lowestRow, r);
-  const lowestAt0 = R + lowestRow * ROW_H + R;
-  gridIntroTarget = Math.max(0, lowestAt0 - (SY - 2 * H / 3));
+  gridIntroTarget = Math.max(0, (grid.length - 10) * ROW_H);
   gridScrollY = H * 0.85;
   introActive = true;
 }
@@ -1895,9 +1890,8 @@ function loop() {
     gridScrollY = Math.max(gridIntroTarget, gridScrollY - 10);
     if (gridScrollY <= gridIntroTarget) { introActive = false; gridScrollY = gridIntroTarget; }
   } else if (!projectile) {
-    /* scroll dynamique : maintient 2/3 d'espace vide sous la dernière bille */
-    const lby0 = lowestBubbleY() + gridScrollY;   // Y de la bille la plus basse à scroll=0
-    const tgt = Math.max(0, lby0 - (SY - 2 * H / 3));
+    /* scroll dynamique : maintient exactement 10 rangées visibles */
+    const tgt = Math.max(0, lowestBubbleY() + gridScrollY - (2 * R + 9 * ROW_H));
     if (gridScrollY > tgt + 0.5) gridScrollY = Math.max(tgt, gridScrollY - 2);
     else gridScrollY = tgt;
   }
