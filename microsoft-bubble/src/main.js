@@ -30,12 +30,17 @@ function classicColors(lv) {
   return BASE_COLORS.slice(0, n);
 }
 function classicRows(lv) {
-  if (lv <= 1) return 4;
-  if (lv <= 3) return 5;
-  if (lv <= 6) return 6;
-  if (lv <= 10) return 7;
-  if (lv <= 15) return 8;
-  return 9;
+  if (lv <= 1)  return 4;
+  if (lv <= 2)  return 5;
+  if (lv <= 4)  return 6;
+  if (lv <= 6)  return 7;
+  if (lv <= 9)  return 8;
+  if (lv <= 12) return 9;
+  if (lv <= 15) return 10;
+  if (lv <= 19) return 11;
+  if (lv <= 24) return 12;
+  if (lv <= 30) return 13;
+  return 14;
 }
 function powerupChance() {
   if (mode === 'adventure') return 0.08;
@@ -103,12 +108,11 @@ function scatterSpecialBubbles() {
   for (let i = 0; i < chamCount; i++)  place({ type: 'chameleon', color: null });
 }
 
-/* Calcule et lance l'animation d'entrée de la grille (grid scroll depuis le haut) */
+/* Lance l'animation d'entrée de la grille (glisse depuis le haut vers Y=0).
+   Row 0 atterrit à Y=R=20px : Power Line toujours visible après l'intro. */
 function initLevelScroll() {
-  gridScrollY = 0;
-  const rawLowest = lowestBubbleY();
-  gridIntroTarget = Math.max(0, rawLowest - (SY - 2 * H / 3));
-  gridScrollY = gridIntroTarget + H * 0.85;
+  gridIntroTarget = 0;
+  gridScrollY = H * 0.85;   // démarre hors écran en haut
   introActive = true;
 }
 
@@ -210,19 +214,8 @@ function loop() {
   if (gameState !== 'play') return;
   /* animation d'entrée : la grille descend depuis le haut */
   if (introActive) {
-    gridScrollY = Math.max(gridIntroTarget, gridScrollY - 10);
-    if (gridScrollY <= gridIntroTarget) { introActive = false; gridScrollY = gridIntroTarget; }
-  } else if (gridScrollY > 0) {
-    /* scroll dynamique : maintient 2/3 d'espace vide entre la grille et le lanceur */
-    let lowestRow = -1;
-    for (let r = grid.length - 1; r >= 0 && lowestRow < 0; r--)
-      for (let c = 0; c < COLS; c++)
-        if (grid[r][c] !== null) { lowestRow = r; break; }
-    if (lowestRow >= 0) {
-      const rawY = R + lowestRow * ROW_H + R;
-      const tgt = Math.max(0, rawY - (SY - 2 * H / 3));
-      if (tgt < gridScrollY) gridScrollY = Math.max(tgt, gridScrollY - 2);
-    } else { gridScrollY = 0; }
+    gridScrollY = Math.max(0, gridScrollY - 10);
+    if (gridScrollY <= 0) { introActive = false; gridScrollY = 0; }
   }
   if (projectile) stepProjectile();
   updateParticles();
