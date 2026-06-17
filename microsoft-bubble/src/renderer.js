@@ -366,4 +366,16 @@ function render() {
   }
 
   drawFloatTexts(ctx);
+  drawBuildTag(ctx);
+}
+
+/* Numéro de build, discret en bas à droite — pour vérifier la version installée */
+function drawBuildTag(g) {
+  g.save();
+  g.font = '10px monospace';
+  g.textAlign = 'right';
+  g.textBaseline = 'bottom';
+  g.fillStyle = 'rgba(255,255,255,0.35)';
+  g.fillText('build ' + (typeof BUILD === 'string' ? BUILD : '?'), W - 4, H - 3);
+  g.restore();
 }

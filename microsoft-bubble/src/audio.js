@@ -61,7 +61,9 @@ const sfx = {
   levelUp() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.25, i * 0.12)); },
   gameOver() { tone(220, 0.5, 'sawtooth', 0.16); tone(147, 0.7, 'sawtooth', 0.16, 0.25); },
   /* Arpège pentatonique */
-  powerup() { [392, 440, 523, 587, 659].forEach((f, i) => tone(f, 0.12, 'sine', 0.2, i * 0.05)); }
+  powerup() { [392, 440, 523, 587, 659].forEach((f, i) => tone(f, 0.12, 'sine', 0.2, i * 0.05)); },
+  /* Choc métallique : la bille s'empale sur une bille à pics */
+  spike() { tone(160, 0.12, 'square', 0.22); tone(90, 0.18, 'sawtooth', 0.18, 0.02); noiseBurst(0.06, 0.1); }
 };
 
 /* ── Musique : boucles synthwave sombres arcade 16 bits ──

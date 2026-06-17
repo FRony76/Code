@@ -242,6 +242,13 @@ canvas {
 <!-- Ordre de chargement : état/outils d'abord, orchestrateur en dernier -->
 <script>
 'use strict';
+/* ── build.js ─ numéro de build affiché à l'écran ──
+   Permet de vérifier que la version installée (cellulaire, cache) est à jour.
+   À incrémenter à chaque livraison. */
+const BUILD = '2026.06.17-1';
+</script>
+<script>
+'use strict';
 /* ── store.js ─ persistance localStorage : paramètres, scores, progression ── */
 
 const Store = {
@@ -368,7 +375,9 @@ const sfx = {
   levelUp() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, 'triangle', 0.25, i * 0.12)); },
   gameOver() { tone(220, 0.5, 'sawtooth', 0.16); tone(147, 0.7, 'sawtooth', 0.16, 0.25); },
   /* Arpège pentatonique */
-  powerup() { [392, 440, 523, 587, 659].forEach((f, i) => tone(f, 0.12, 'sine', 0.2, i * 0.05)); }
+  powerup() { [392, 440, 523, 587, 659].forEach((f, i) => tone(f, 0.12, 'sine', 0.2, i * 0.05)); },
+  /* Choc métallique : la bille s'empale sur une bille à pics */
+  spike() { tone(160, 0.12, 'square', 0.22); tone(90, 0.18, 'sawtooth', 0.18, 0.02); noiseBurst(0.06, 0.1); }
 };
 
 /* ── Musique : boucles synthwave sombres arcade 16 bits ──
@@ -1358,6 +1367,18 @@ function render() {
   }
 
   drawFloatTexts(ctx);
+  drawBuildTag(ctx);
+}
+
+/* Numéro de build, discret en bas à droite — pour vérifier la version installée */
+function drawBuildTag(g) {
+  g.save();
+  g.font = '10px monospace';
+  g.textAlign = 'right';
+  g.textBaseline = 'bottom';
+  g.fillStyle = 'rgba(255,255,255,0.35)';
+  g.fillText('build ' + (typeof BUILD === 'string' ? BUILD : '?'), W - 4, H - 3);
+  g.restore();
 }
 </script>
 <script>
@@ -1847,14 +1868,23 @@ function stepProjectile() {
 
     if (p.y - R <= 0) { p.y = R; settle(null); return; }
 
-    let hitCell = null, bestD = Infinity;
+    let hitCell = null, bestD = Infinity, spikeCell = null, spikeD = Infinity;
     for (let r = 0; r < grid.length; r++)
       for (let c = 0; c < COLS; c++) {
-        if (grid[r][c] === null) continue;
+        const cell = grid[r][c];
+        if (cell === null) continue;
         const dx = p.x - colX(c, r), dy = p.y - rowY(r);
         const d2 = dx * dx + dy * dy;
-        if (d2 < (D - 1) * (D - 1) && d2 < bestD) { bestD = d2; hitCell = [r, c]; }
+        if (d2 < (D - 1) * (D - 1)) {
+          if (d2 < bestD) { bestD = d2; hitCell = [r, c]; }
+          if (typeof cell === 'object' && cell.type === 'spike' && d2 < spikeD) {
+            spikeD = d2; spikeCell = [r, c];
+          }
+        }
       }
+    /* une bille ordinaire/arc-en-ciel qui frôle une bille à pics s'y empale,
+       même si une voisine est marginalement plus proche */
+    if (spikeCell && (!p.pu || p.pu === 'rainbow')) hitCell = spikeCell;
     if (hitCell) { settle(hitCell); return; }
   }
 }
@@ -1996,7 +2026,11 @@ function settle(hitCell) {
     const [hr, hc] = hitCell;
     const cell = grid[hr][hc];
     if (cell && typeof cell === 'object' && cell.type === 'spike') {
-      burst(p.x, p.y, p.color || '#AAAAAA', 10);
+      burst(p.x, p.y, p.color || '#AAAAAA', 16);
+      burst(colX(hc, hr), rowY(hr), '#C0392B', 8);
+      spawnFloatText(p.x, Math.max(30, p.y), '✸ AÏE !', '#E74C3C');
+      sfx.spike();
+      vibrate(35);
       combo = 0;
       levelMiss = true;
       projectile = null;

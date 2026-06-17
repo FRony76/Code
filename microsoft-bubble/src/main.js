@@ -262,14 +262,23 @@ function stepProjectile() {
 
     if (p.y - R <= 0) { p.y = R; settle(null); return; }
 
-    let hitCell = null, bestD = Infinity;
+    let hitCell = null, bestD = Infinity, spikeCell = null, spikeD = Infinity;
     for (let r = 0; r < grid.length; r++)
       for (let c = 0; c < COLS; c++) {
-        if (grid[r][c] === null) continue;
+        const cell = grid[r][c];
+        if (cell === null) continue;
         const dx = p.x - colX(c, r), dy = p.y - rowY(r);
         const d2 = dx * dx + dy * dy;
-        if (d2 < (D - 1) * (D - 1) && d2 < bestD) { bestD = d2; hitCell = [r, c]; }
+        if (d2 < (D - 1) * (D - 1)) {
+          if (d2 < bestD) { bestD = d2; hitCell = [r, c]; }
+          if (typeof cell === 'object' && cell.type === 'spike' && d2 < spikeD) {
+            spikeD = d2; spikeCell = [r, c];
+          }
+        }
       }
+    /* une bille ordinaire/arc-en-ciel qui frôle une bille à pics s'y empale,
+       même si une voisine est marginalement plus proche */
+    if (spikeCell && (!p.pu || p.pu === 'rainbow')) hitCell = spikeCell;
     if (hitCell) { settle(hitCell); return; }
   }
 }
@@ -411,7 +420,11 @@ function settle(hitCell) {
     const [hr, hc] = hitCell;
     const cell = grid[hr][hc];
     if (cell && typeof cell === 'object' && cell.type === 'spike') {
-      burst(p.x, p.y, p.color || '#AAAAAA', 10);
+      burst(p.x, p.y, p.color || '#AAAAAA', 16);
+      burst(colX(hc, hr), rowY(hr), '#C0392B', 8);
+      spawnFloatText(p.x, Math.max(30, p.y), '✸ AÏE !', '#E74C3C');
+      sfx.spike();
+      vibrate(35);
       combo = 0;
       levelMiss = true;
       projectile = null;
