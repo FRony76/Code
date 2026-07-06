@@ -30,10 +30,10 @@ function classicColors(lv) {
   return BASE_COLORS.slice(0, n);
 }
 function classicRows(lv) {
-  if (lv <= 15) return 10;
-  if (lv <= 19) return 11;
-  if (lv <= 24) return 12;
-  if (lv <= 30) return 13;
+  if (lv <= 3)  return 10;
+  if (lv <= 6)  return 11;
+  if (lv <= 10) return 12;
+  if (lv <= 15) return 13;
   return 14;
 }
 function powerupChance() {
@@ -235,20 +235,24 @@ function stepProjectile() {
     if (p.x + R > W) { p.x = W - R; p.vx = -Math.abs(p.vx); }
 
     if (p.pu === 'laser') {
-      /* le laser traverse et détruit tout sur son passage */
-      for (let r = 0; r < grid.length; r++)
-        for (let c = 0; c < COLS; c++) {
+      /* le laser traverse et détruit tout sur son passage (max 10 billes) */
+      p.kills = p.kills || 0;
+      for (let r = 0; r < grid.length && p.kills < 10; r++)
+        for (let c = 0; c < COLS && p.kills < 10; c++) {
           if (grid[r][c] === null) continue;
           const dx = p.x - colX(c, r), dy = p.y - rowY(r);
-          if (dx * dx + dy * dy < (D * 0.9) * (D * 0.9))
+          if (dx * dx + dy * dy < (D * 0.9) * (D * 0.9)) {
             popCell(r, c, 10 * scoreLevel());
+            p.kills++;
+          }
         }
-      if (p.y < -R) {
+      if (p.y < -R || p.kills >= 10) {
         projectile = null;
         dropFloating(scoreLevel());
         combo++;
         sfx.powerup();
         finishShot();
+        return;
       }
       continue;
     }
@@ -389,9 +393,11 @@ function settle(hitCell) {
       const cells = [];
       if (fireColor) {
         for (let r = 0; r < grid.length; r++)
-          for (let c = 0; c < COLS; c++)
+          for (let c = 0; c < COLS; c++) {
+            if (powerCell && r === powerCell.r && c === powerCell.c) continue;
             if (effectiveColor(grid[r][c]) === fireColor) cells.push([r, c]);
-      } else {
+          }
+      } else if (!(powerCell && hr === powerCell.r && hc === powerCell.c)) {
         cells.push([hr, hc]);
       }
       cells.forEach(([r, c]) => popCell(r, c, Math.round(10 * lvl * mult)));
