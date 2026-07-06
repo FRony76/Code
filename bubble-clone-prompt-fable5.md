@@ -245,7 +245,7 @@ Cinq power-ups apparaissent aléatoirement dans le shooter (probabilité ajustab
 | **Arc-en-ciel**   | 🌈    | Correspond à n'importe quelle couleur (wild card)              |
 | **Laser**         | ⚡    | Traverse toute la colonne et détruit tout sur son passage      |
 | **Boule de feu**  | 🔥    | Détruit un cluster de 5+ bulles quelle que soit la taille     |
-| **Glace**         | ❄️    | Fige la rangée la plus basse pendant 10 secondes               |
+| **Glace**         | ❄️    | Gèle et brise la rangée occupée la plus basse                  |
 
 Les power-ups ont leur propre rendu visuel animé (halo pulsant, icône centrée).
 
@@ -253,13 +253,22 @@ Les power-ups ont leur propre rendu visuel animé (halo pulsant, icône centrée
 
 ## Modes de jeu
 
-### 1. Classic Mode (infini)
+### 1. Classic Mode (niveaux progressifs)
 
-- La grille descend périodiquement d'une rangée.
-- Intervalle initial : 15 secondes, réduit de 1s par niveau.
-- Minimum : 5 secondes.
-- Game over si une bulle passe la ligne de danger (`DLIM = SY - R×4`).
-- Progression de niveau : vider complètement la grille.
+Le jeu n'est **pas continu** : il enchaîne des niveaux de plus en plus garnis
+(rangées et couleurs croissantes, voir tableau de difficulté).
+
+- **Stock de billes** : le joueur démarre avec 30 billes ; chaque tir en consomme une.
+- **Récupération** : chaque bille qui tombe (flottante ou via Power Line) revient
+  dans le stock ; chaque niveau terminé rapporte **+5 billes**.
+- **Power Line** : à chaque niveau, une bille aléatoire de la **rangée du haut**
+  porte le bonus (anneau électrique pulsant + ⚡). Quand cette bille est éclatée
+  en l'associant à d'autres billes de sa couleur (cluster ≥ 3, ou détruite par
+  un power-up), toutes les billes restantes **tombent** (points + récupération)
+  et le niveau est gagné.
+- Game over si le stock tombe à zéro avec des billes restantes, ou si une bulle
+  passe la ligne de danger (`DLIM = SY - R×4`).
+- Fin de niveau : grille vidée (pops) ou Power Line activée.
 
 ### 2. Adventure Mode (niveaux fixes)
 
@@ -462,14 +471,14 @@ function drawAimGuide(ctx, aimX, aimY) {
 
 ## Progression de difficulté
 
-| Niveau | Rangées initiales | Couleurs | Intervalle drop | Power-ups |
-|--------|:-----------------:|:--------:|:---------------:|:---------:|
-| 1      | 4                 | 4        | 15s             | aucun     |
-| 2–3    | 5                 | 4        | 13s             | 5%        |
-| 4–6    | 6                 | 5        | 11s             | 8%        |
-| 7–10   | 7                 | 5        | 9s              | 10%       |
-| 11–15  | 8                 | 6        | 7s              | 12%       |
-| 16+    | 9                 | 6–8      | 5s              | 15%       |
+| Niveau | Rangées initiales | Couleurs | Power-ups |
+|--------|:-----------------:|:--------:|:---------:|
+| 1      | 4                 | 4        | aucun     |
+| 2–3    | 5                 | 4        | 5%        |
+| 4–6    | 6                 | 5        | 8%        |
+| 7–10   | 7                 | 5        | 10%       |
+| 11–15  | 8                 | 6        | 12%       |
+| 16+    | 9                 | 6–8      | 15%       |
 
 ---
 

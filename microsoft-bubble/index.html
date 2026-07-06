@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Microsoft Bubble — Clone</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="stage">
+  <div id="wrapper">
+    <div id="hud" hidden>
+      <span id="hud-score">Score : 0</span>
+      <span id="hud-mid">Niveau 1</span>
+      <span id="hud-right">Best : 0</span>
+      <button id="pause-btn" aria-label="Mettre le jeu en pause">⏸</button>
+    </div>
+    <canvas id="c" width="420" height="680"
+            aria-label="Zone de jeu Microsoft Bubble : visez et tirez des bulles colorées"></canvas>
+    <div id="overlay" role="dialog" aria-live="polite"></div>
+  </div>
+</div>
+<!-- Ordre de chargement : état/outils d'abord, orchestrateur en dernier -->
+<script src="src/build.js"></script>
+<script src="src/store.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/grid.js"></script>
+<script src="src/solver.js"></script>
+<script src="src/levels.js"></script>
+<script src="src/particles.js"></script>
+<script src="src/powerups.js"></script>
+<script src="src/renderer.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
