@@ -351,14 +351,15 @@ function settle(hitCell) {
   const lvl = scoreLevel();
 
   if (p.pu === 'ice') {
-    /* gèle et brise la rangée occupée la plus basse */
-    let lowest = -1;
-    for (let r = grid.length - 1; r >= 0 && lowest < 0; r--)
-      if (grid[r].some(v => v !== null)) lowest = r;
-    if (lowest >= 0) {
-      let n = 0;
-      for (let c = 0; c < COLS; c++)
-        if (grid[lowest][c] !== null) { popCell(lowest, c, 10 * lvl); n++; }
+    /* gèle et brise la rangée frappée (peut éclater la bille bonus Power Line) */
+    let row;
+    if (hitCell) row = hitCell[0];
+    else row = Math.max(0, Math.min(grid.length - 1,
+      Math.round((p.y + gridScrollY - R) / ROW_H)));
+    let n = 0;
+    for (let c = 0; c < COLS; c++)
+      if (grid[row][c] !== null) { popCell(row, c, 10 * lvl); n++; }
+    if (n > 0) {
       spawnFloatText(p.x, Math.max(30, p.y), `❄ +${n * 10 * lvl}`, '#7FDBFF');
       dropFloating(lvl);
       combo++;
