@@ -307,7 +307,9 @@ function fallBubble(r, c, pts) {
   if (pts) score += pts;
 }
 
-function dropFloating(lvl) {
+/* ice=true : appel depuis le power-up glace, seul cas qui crédite le stock
+   en Classique (1 bille bonus pour 3 tombées, arrondi supérieur) */
+function dropFloating(lvl, ice = false) {
   const fl = findFloating();
   let colorCount = 0;
   fl.forEach(([r, c]) => {
@@ -315,9 +317,10 @@ function dropFloating(lvl) {
     fallBubble(r, c, isColor ? 5 * lvl : 0);
     if (isColor) colorCount++;
   });
-  if (mode === 'classic' && colorCount > 0) {
-    stock += colorCount;
-    spawnFloatText(SX, SY - 60, `+${colorCount} bille${colorCount > 1 ? 's' : ''}`, '#7FDBFF');
+  if (mode === 'classic' && ice && colorCount > 0) {
+    const gained = Math.ceil(colorCount / 3);
+    stock += gained;
+    spawnFloatText(SX, SY - 60, `+${gained} bille${gained > 1 ? 's' : ''}`, '#7FDBFF');
   }
   if (fl.length >= 4) awardPowerup();
   return fl.length;
@@ -361,7 +364,7 @@ function settle(hitCell) {
       if (grid[row][c] !== null) { popCell(row, c, 10 * lvl); n++; }
     if (n > 0) {
       spawnFloatText(p.x, Math.max(30, p.y), `❄ +${n * 10 * lvl}`, '#7FDBFF');
-      dropFloating(lvl);
+      dropFloating(lvl, true);
       combo++;
     }
     sfx.powerup();
@@ -516,10 +519,12 @@ function winLevel(preCount = 0) {
   sfx.levelUp();
 
   if (mode === 'classic') {
-    /* bonus = 5 + moitié des billes restantes juste avant la chute */
-    const bonus = 5 + Math.floor(preCount / 2);
-    stock += bonus;
-    spawnFloatText(SX, H / 2 + 30, `+${bonus} billes`, '#7FDBFF');
+    /* bonus = 1 bille pour 2 tombées à la chute finale, arrondi supérieur */
+    const bonus = Math.ceil(preCount / 2);
+    if (bonus > 0) {
+      stock += bonus;
+      spawnFloatText(SX, H / 2 + 30, `+${bonus} bille${bonus > 1 ? 's' : ''}`, '#7FDBFF');
+    }
     spawnConfetti();
     level++;
     Store.set('bubbleMaxLvl', Math.max(Store.get('bubbleMaxLvl', 1), level));
